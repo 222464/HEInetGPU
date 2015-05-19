@@ -1,23 +1,3 @@
-constant sampler_t normalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
-CLK_ADDRESS_CLAMP |
-CLK_FILTER_NEAREST;
-
-constant sampler_t normalizedClampedToEdgeNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
-CLK_ADDRESS_CLAMP_TO_EDGE |
-CLK_FILTER_NEAREST;
-
-constant sampler_t unnormalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_FALSE |
-CLK_ADDRESS_CLAMP |
-CLK_FILTER_NEAREST;
-
-constant sampler_t defaultNormalizedSampler = CLK_NORMALIZED_COORDS_TRUE |
-CLK_ADDRESS_CLAMP_TO_EDGE |
-CLK_FILTER_NEAREST;
-
-constant sampler_t defaultUnnormalizedSampler = CLK_NORMALIZED_COORDS_FALSE |
-CLK_ADDRESS_CLAMP_TO_EDGE |
-CLK_FILTER_NEAREST;
-
 float randFloat(uint2* state) {
 	const float invMaxInt = 1.0f / 4294967296.0f;
 	uint x = (*state).x * 17 + (*state).y * 13123;
@@ -33,50 +13,33 @@ float sigmoid(float x) {
 	return 1.0f / (1.0f + exp(-x));
 }
 
-float boostFunction(float trace, float threshold) {
-	return fmin(1.0f, fmax(0.0f, threshold - trace) / threshold);
-}
-
-void kernel initializeLayerHidden(write_only image2d_t hiddenFeedForwardActivations,
-	write_only image2d_t hiddenFeedBackActivations,
-	write_only image2d_t hiddenStates,
-	write_only image3d_t feedForwardWeights,
-	write_only image2d_t hiddenBiases,
-	write_only image3d_t lateralWeights,
-	write_only image3d_t feedBackWeights,
-	int feedForwardSize, int lateralSize, int feedBackSize,
-	uint2 seed, float sparsity, float lateralScalar, float feedBackScalar, float minWeight, float maxWeight)
+void kernel rscInitialize(write_only image2d_t hiddenVisibleWeights,
+	write_only image2d_t hiddenHiddenPrevWeights,
+	write_only image2d_t hiddenHiddenWeights,
+	int receptiveSize, int recurrentSize, int inhibitionSize, uint2 seed)
 {
 	uint2 seedValue = seed + (uint2)(get_global_id(0) * 29 + 12, get_global_id(1) * 16 + 23) * 36;
 
-	int2 hiddenPosition = (int2)(get_global_id(0), get_global_id(1));
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	write_imagef(hiddenFeedForwardActivations, hiddenPosition, (float4)(0.0f, 0.0f, 0.0f, 0.0f));
-	write_imagef(hiddenFeedBackActivations, hiddenPosition, (float4)(0.0f, 0.0f, 0.0f, 0.0f));
-	write_imagef(hiddenStates, hiddenPosition, (float4)(0.0f, 0.0f, 0.0f, 0.0f));
-
-	float hiddenBias = randFloat(&seedValue) * (maxWeight - minWeight) + minWeight;
-
-	write_imagef(hiddenBiases, hiddenPosition, (float4)(hiddenBias, 0.0f, 0.0f, 0.0f));
-
-	for (int wi = 0; wi < feedForwardSize; wi++) {
-		int4 weightPosition = (int4)(hiddenPosition.x, hiddenPosition.y, wi, 0);
+	for (int wi = 0; wi < receptiveSize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
 		float feedForwardWeight = randFloat(&seedValue) * (maxWeight - minWeight) + minWeight;
 
 		write_imagef(feedForwardWeights, weightPosition, (float4)(feedForwardWeight, 0.0f, 0.0f, 0.0f));
 	}
 
-	for (int wi = 0; wi < lateralSize; wi++) {
-		int4 weightPosition = (int4)(hiddenPosition.x, hiddenPosition.y, wi, 0);
+	for (int wi = 0; wi < recurrentSize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
 		float lateralWeight = lateralScalar * (randFloat(&seedValue) * (maxWeight - minWeight) + minWeight);
 
 		write_imagef(lateralWeights, weightPosition, (float4)(lateralWeight, 0.0f, 0.0f, 0.0f));
 	}
 
-	for (int wi = 0; wi < feedBackSize; wi++) {
-		int4 weightPosition = (int4)(hiddenPosition.x, hiddenPosition.y, wi, 0);
+	for (int wi = 0; wi < inhibitionSize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
 		float feedBackWeight = feedBackScalar * (randFloat(&seedValue) * (maxWeight - minWeight) + minWeight);
 
@@ -84,24 +47,57 @@ void kernel initializeLayerHidden(write_only image2d_t hiddenFeedForwardActivati
 	}
 }
 
-void kernel initializeLayerVisible(write_only image2d_t visibleBiases, write_only image2d_t visibleReconstruction, write_only image3d_t reconstructionWeights,
-	int reconstructionSize, uint2 seed, float minWeight, float maxWeight)
+void kernel rscActivate(read_only image2d_t inputs, read_only image2d_t statePrev,
+	read_only image2d_t hiddenVisibleWeightsPrev, read_only image2d_t hiddenHiddenPrevWeightsPrev,
+	write_only image2d_t activations,
+	int2 inputDims, int2 dims, float2 dimsToInputDims,
+	int receptiveRadius, int recurrentRadius)
 {
-	uint2 seedValue = seed + (uint2)(get_global_id(0) * 64 + 11, get_global_id(1) * 16 + 4) * 2;
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 visiblePosition = (int2)(get_global_id(0), get_global_id(1));
+	int2 inputCenterPosition = (int2)(position.x * dimsToInputDims.x, position.y * dimsToInputDims.y);
 
-	float bias = randFloat(&seedValue) * (maxWeight - minWeight) + minWeight;
+	float sum = 0.0f;
 
-	write_imagef(visibleBiases, visiblePosition, (float4)(bias, 0.0f, 0.0f, 0.0f));
+	int wi = 0;
 
-	for (int wi = 0; wi < reconstructionSize; wi++) {
-		float weight = randFloat(&seedValue) * (maxWeight - minWeight) + minWeight;
+	for (int dx = -receptiveRadius; dx <= receptiveRadius; dx++)
+		for (int dy = -receptiveRadius; dy <= receptiveRadius; dy++) {
+			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
 
-		write_imagef(reconstructionWeights, (int4)(visiblePosition.x, visiblePosition.y, wi, 0), (float4)(weight, 0.0f, 0.0f, 0.0f));
-	}
+			if (inputPosition.x >= 0 && inputPosition.x < inputDims.x && inputPosition.y >= 0 && inputPosition.y < inputDims.y) {
+				float input = read_imagef(inputs, inputPosition).x;
 
-	write_imagef(visibleReconstruction, visiblePosition, (float4)(0.0f, 0.0f, 0.0f, 0.0f));
+				float2 weight = read_imagef(hiddenVisibleWeightsPrev, (int4)(position.x, position.y, wi, 0)).xy;
+
+				float delta = input - weight.x;
+
+				sum += delta * delta * weight.y;
+			}
+
+			wi++;
+		}
+
+	wi = 0;
+
+	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
+		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
+			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
+
+			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
+				float input = read_imagef(statePrev, inputPosition).x;
+
+				float2 weight = read_imagef(hiddenHiddenPrevWeightsPrev, (int4)(position.x, position.y, wi, 0)).xy;
+
+				float delta = input - weight.x;
+
+				sum += delta * delta * weight.y;
+			}
+
+			wi++;
+		}
+
+	write_imagef(activations, position, (float4)(-sum));
 }
 
 void kernel layerHiddenFeedForwardActivate(read_only image2d_t inputs, read_only image2d_t hiddenStatesPrev, read_only image3d_t feedForwardWeights, read_only image3d_t lateralWeights, read_only image2d_t hiddenBiases, write_only image2d_t hiddenFeedForwardActivations,

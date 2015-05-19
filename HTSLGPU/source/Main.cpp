@@ -3,6 +3,8 @@
 #include <time.h>
 #include <iostream>
 
+#include <random>
+
 int main() {
 	std::mt19937 generator(time(nullptr));
 
