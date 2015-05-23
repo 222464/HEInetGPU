@@ -4,14 +4,15 @@ namespace htsl {
 	class RecurrentSparseCoder2D {
 	private:
 		cl::Image2D _activations;
+		cl::Image2D _inhibitions;
 
 		cl::Image2D _states;
 		cl::Image2D _statesPrev;
 
 		cl::Image2D _receptiveReconstruction;
 		cl::Image2D _recurrentReconstruction;
-		cl::Image2D _receptiveError;
-		cl::Image2D _recurrentError;
+		cl::Image2D _receptiveErrors;
+		cl::Image2D _recurrentErrors;
 
 		cl::Image3D _hiddenVisibleWeights;
 		cl::Image3D _hiddenVisibleWeightsPrev;
@@ -38,8 +39,8 @@ namespace htsl {
 			int receptiveRadius, int recurrentRadius, int inhibitionRadius,
 			sys::ComputeSystem &cs, sys::ComputeProgram &program);
 
-		void update(sys::ComputeSystem &cs, const cl::Image2D &input);
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &input, float alpha, float beta, float gamma, float delta);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs);
+		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity);
 		void stepEnd();
 	};
 }
