@@ -1,6 +1,7 @@
 #include <system/ComputeSystem.h>
 
 #include <htsl/RecurrentSparseCoder2D.h>
+#include <vis/ReceptiveFields.h>
 
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
@@ -20,9 +21,27 @@ int main() {
 	sys::ComputeProgram program;
 	program.loadFromFile("resources/htsl.cl", cs);
 
+	std::shared_ptr<htsl::RecurrentSparseCoder2D::Kernels> rsc2dKernels = std::make_shared<htsl::RecurrentSparseCoder2D::Kernels>();
+
+	rsc2dKernels->loadFromProgram(program);
+
 	htsl::RecurrentSparseCoder2D rsc2d;
 
-	rsc2d.createRandom(32, 32, 32, 32, 8, 8, 8, cs, program);
+	rsc2d.createRandom(32, 32, 32, 32, 8, 8, 8, cs, rsc2dKernels);
+
+	sf::Image testImage;
+	testImage.loadFromFile("testImage.png");
+
+	int windowWidth = 32;
+	int windowHeight = 32;
+
+	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
+
+	vis::ReceptiveFields rfs;
+	rfs.create(rsc2d);
+
+	std::uniform_int_distribution<int> distSampleX(0, testImage.getSize().x - windowWidth - 1);
+	std::uniform_int_distribution<int> distSampleY(0, testImage.getSize().y - windowHeight - 1);
 
 	sf::RenderWindow window;
 
@@ -41,9 +60,43 @@ int main() {
 			}
 		}
 
+		int sx = distSampleX(generator);
+		int sy = distSampleY(generator);
+
+		std::vector<float> imageData(windowWidth * windowHeight);
+
+		for (int wx = 0; wx < windowWidth; wx++)
+			for (int wy = 0; wy < windowHeight; wy++) {
+				int x = sx + wx;
+				int y = sy + wy;
+
+				sf::Color color = testImage.getPixel(x, y);
+
+				imageData[wx + wy * windowWidth] = color.r * 0.333f + color.g * 0.333f + color.b * 0.333f;
+			}
+
+		cl::size_t<3> zeroCoord;
+		zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+		cl::size_t<3> dims;
+		dims[0] = windowWidth;
+		dims[1] = windowHeight;
+		dims[2] = 1;
+
+		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
+
+		rsc2d.update(cs, inputImage);
+		rsc2d.learn(cs, inputImage, 0.8f, 0.1f, 0.1f, 0.02f, 0.01f);
+		rsc2d.stepEnd();
+
+		rfs.render(rsc2d, cs);
+
 		window.clear();
 
+		sf::Sprite rfsSprite;
+		rfsSprite.setTexture(rfs.getTexture());
 
+		window.draw(rfsSprite);
 
 		window.display();
 	}

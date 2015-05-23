@@ -6,7 +6,7 @@
 
 namespace htsl {
 	class RecurrentSparseCoder2D {
-	private:
+	public:
 		struct Kernels {
 			cl::Kernel _initializeKernel;
 			cl::Kernel _activateKernel;
@@ -19,6 +19,7 @@ namespace htsl {
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
 
+	private:
 		std::shared_ptr<Kernels> _kernels;
 
 		int _inputWidth, _inputHeight;
