@@ -8,7 +8,10 @@ namespace htsl {
 		cl::Image2D _states;
 		cl::Image2D _statesPrev;
 
-		cl::Image2D _reconstruction;
+		cl::Image2D _receptiveReconstruction;
+		cl::Image2D _recurrentReconstruction;
+		cl::Image2D _receptiveError;
+		cl::Image2D _recurrentError;
 
 		cl::Image3D _hiddenVisibleWeights;
 		cl::Image3D _hiddenVisibleWeightsPrev;
@@ -20,7 +23,9 @@ namespace htsl {
 		cl::Image2D _biasesPrev;
 
 		cl::Kernel _activateKernel;
-		cl::Kernel _reconstructKernel;
+		cl::Kernel _reconstructReceptiveKernel;
+		cl::Kernel _reconstructRecurrentKernel;
+		cl::Kernel _errorKernel;
 		cl::Kernel _inhibitKernel;
 		cl::Kernel _learnKernel;
 

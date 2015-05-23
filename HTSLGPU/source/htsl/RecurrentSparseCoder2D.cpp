@@ -21,7 +21,10 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 
 	_activations = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
-	_reconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
+	_receptiveReconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
+	_recurrentReconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	_receptiveError = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
+	_recurrentError = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
 	_hiddenVisibleWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveRadius);
 	_hiddenVisibleWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveRadius);
@@ -62,7 +65,9 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	cs.getQueue().enqueueNDRangeKernel(initializeKernel, cl::NullRange, cl::NDRange(_width, _height));
 
 	_activateKernel = cl::Kernel(program.getProgram(), "rscActivate");
-	_reconstructKernel = cl::Kernel(program.getProgram(), "rscReconstruct");
+	_reconstructReceptiveKernel = cl::Kernel(program.getProgram(), "rscReconstructReceptive");
+	_reconstructRecurrentKernel = cl::Kernel(program.getProgram(), "rscReconstructRecurrent");
+	_errorKernel = cl::Kernel(program.getProgram(), "rscError");
 	_inhibitKernel = cl::Kernel(program.getProgram(), "rscInhibit");
 	_learnKernel = cl::Kernel(program.getProgram(), "rscLearn");
 }
@@ -99,13 +104,22 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 		cs.getQueue().enqueueNDRangeKernel(_inhibitKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 
-	// Reconstruct
+	// Reconstruction - receptive
 	{
 		int index = 0;
 
 
 
-		cs.getQueue().enqueueNDRangeKernel(_reconstructKernel, cl::NullRange, cl::NDRange(_inputWidth, _inputHeight));
+		cs.getQueue().enqueueNDRangeKernel(_reconstructReceptiveKernel, cl::NullRange, cl::NDRange(_inputWidth, _inputHeight));
+	}
+
+	// Reconstruction - recurrent
+	{
+		int index = 0;
+
+
+
+		cs.getQueue().enqueueNDRangeKernel(_reconstructRecurrentKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 }
 
