@@ -2,6 +2,7 @@
 
 #include <htsl/RecurrentSparseCoder2D.h>
 #include <vis/ReceptiveFields.h>
+#include <vis/PrettySDR.h>
 
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
@@ -39,6 +40,10 @@ int main() {
 
 	vis::ReceptiveFields rfs;
 	rfs.create(rsc2d);
+
+	vis::PrettySDR psdr;
+
+	psdr.create(rsc2d.getWidth(), rsc2d.getHeight());
 
 	std::uniform_int_distribution<int> distSampleX(0, testImage.getSize().x - windowWidth - 1);
 	std::uniform_int_distribution<int> distSampleY(0, testImage.getSize().y - windowHeight - 1);
@@ -86,10 +91,12 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
 		rsc2d.update(cs, inputImage);
-		rsc2d.learn(cs, inputImage, 0.9f, 0.1f, 0.01f, 0.03f, 0.03f);
+		rsc2d.learn(cs, inputImage, 0.2f, 0.08f, 0.01f, 0.05f, 0.03f);
 		rsc2d.stepEnd();
 
 		rfs.render(rsc2d, cs);
+
+		psdr.loadFromImage(cs, rsc2d);
 
 		window.clear();
 
@@ -97,6 +104,8 @@ int main() {
 		rfsSprite.setTexture(rfs.getTexture());
 
 		window.draw(rfsSprite);
+
+		psdr.render(window, sf::Vector2f(0.0f, 0.0f));
 
 		window.display();
 	}

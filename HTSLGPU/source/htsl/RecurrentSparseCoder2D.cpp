@@ -122,6 +122,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 		_kernels->_inhibitKernel.setArg(index++, _inhibitions);
 		_kernels->_inhibitKernel.setArg(index++, dims);
 		_kernels->_inhibitKernel.setArg(index++, _inhibitionRadius);
+		_kernels->_inhibitKernel.setArg(index++, 1.0f / _inhibitionRadius);
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_inhibitKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}

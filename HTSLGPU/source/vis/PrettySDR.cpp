@@ -10,7 +10,19 @@ void PrettySDR::create(int width, int height) {
 	_nodes.assign(width * height, 0.0f);
 }
 
-void PrettySDR::draw(sf::RenderTarget &rt, const sf::Vector2f &position) {
+void PrettySDR::loadFromImage(sys::ComputeSystem &cs, const htsl::RecurrentSparseCoder2D &rsc2d) {
+	cl::size_t<3> zeroCoord;
+	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+	cl::size_t<3> sdrDims;
+	sdrDims[0] = rsc2d.getWidth();
+	sdrDims[1] = rsc2d.getHeight();
+	sdrDims[2] = 1;
+
+	cs.getQueue().enqueueReadImage(rsc2d._states, CL_TRUE, zeroCoord, sdrDims, 0, 0, _nodes.data());
+}
+
+void PrettySDR::render(sf::RenderTarget &rt, const sf::Vector2f &position) {
 	float rWidth = _nodeSpaceSize * _width;
 	float rHeight = _nodeSpaceSize * _height;
 

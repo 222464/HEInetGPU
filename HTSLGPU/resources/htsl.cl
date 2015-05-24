@@ -105,7 +105,7 @@ void kernel rscActivate(read_only image2d_t inputs, read_only image2d_t statesPr
 void kernel rscInhibit(read_only image2d_t activations, read_only image3d_t hiddenHiddenWeightsPrev, read_only image2d_t biasesPrev,
 	write_only image2d_t states, write_only image2d_t inhibitions,
 	int2 dims,
-	int inhibitionRadius)
+	int inhibitionRadius, float inhibitionRadiusInv)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -124,7 +124,9 @@ void kernel rscInhibit(read_only image2d_t activations, read_only image3d_t hidd
 
 				float weight = read_imagef(hiddenHiddenWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
 
-				sum += weight * (input > thisActivation ? 1.0f : 0.0f);
+				float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
+
+				sum += weight * falloff * (input > thisActivation ? 1.0f : 0.0f);
 			}
 
 			wi++;

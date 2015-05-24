@@ -2,6 +2,8 @@
 
 #include <SFML/Graphics.hpp>
 
+#include "../htsl/RecurrentSparseCoder2D.h"
+
 namespace vis {
 	class PrettySDR {
 	private:
@@ -39,6 +41,8 @@ namespace vis {
 			return _nodes[x + y * _width];
 		}
 
-		void draw(sf::RenderTarget &rt, const sf::Vector2f &position);
+		void loadFromImage(sys::ComputeSystem &cs, const htsl::RecurrentSparseCoder2D &rsc2d);
+
+		void render(sf::RenderTarget &rt, const sf::Vector2f &position);
 	};
 }
