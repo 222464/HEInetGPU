@@ -35,7 +35,7 @@ void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::Com
 		for (int ry = 0; ry < rsc2d.getHeight(); ry++) {
 			for (int fx = 0; fx < rootRfSize; fx++)
 				for (int fy = 0; fy < rootRfSize; fy++) {
-					int index = (rx + ry * rsc2d.getWidth()) + (fx + fy * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
+					int index = (rx + ry * rsc2d.getWidth()) + (fy + fx * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
 
 					minimum = std::min(minimum, weightData[index].x);
 					//minimum = std::min(minimum, weightData[index].y);
@@ -50,7 +50,7 @@ void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::Com
 		for (int ry = 0; ry < rsc2d.getHeight(); ry++) {
 			for (int fx = 0; fx < rootRfSize; fx++)
 				for (int fy = 0; fy < rootRfSize; fy++) {
-					int index = (rx + ry * rsc2d.getWidth()) + (fx + fy * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
+					int index = (rx + ry * rsc2d.getWidth()) + (fy + fx * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
 
 					sf::Color color;
 					color.r = (weightData[index].x - minimum) * mult;

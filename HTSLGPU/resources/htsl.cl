@@ -126,7 +126,7 @@ void kernel rscInhibit(read_only image2d_t activations, read_only image3d_t hidd
 
 				float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
 
-				sum += weight * falloff * (input > thisActivation ? 1.0f : 0.0f);
+				sum += weight * (input > thisActivation ? falloff : 0.0f);
 			}
 
 			wi++;
