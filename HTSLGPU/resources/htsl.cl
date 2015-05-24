@@ -27,9 +27,9 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < receptiveSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue);
+		float weight = randFloat(&seedValue) * 2.0f - 1.0f;
 
-		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight, 0.0f, 0.0f, 0.0f));
+		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight, 1.0f, 0.0f, 0.0f));
 	}
 
 	for (int wi = 0; wi < recurrentSize; wi++) {
@@ -37,7 +37,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 
 		float weight = randFloat(&seedValue);
 
-		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight, 0.0f, 0.0f, 0.0f));
+		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight, 1.0f, 0.0f, 0.0f));
 	}
 
 	for (int wi = 0; wi < inhibitionSize; wi++) {
@@ -45,7 +45,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 
 		float weight = randFloat(&seedValue);
 
-		write_imagef(hiddenHiddenWeights, weightPosition, (float4)(weight, 0.0f, 0.0f, 0.0f));
+		write_imagef(hiddenHiddenWeights, weightPosition, (float4)(weight, 1.0f, 0.0f, 0.0f));
 	}
 }
 
@@ -258,10 +258,10 @@ void kernel rscLearn(read_only image2d_t receptiveErrors, read_only image2d_t re
 				if (inputPosition.x >= 0 && inputPosition.x < inputDims.x && inputPosition.y >= 0 && inputPosition.y < inputDims.y) {
 					float2 weightPrev = read_imagef(hiddenVisibleWeightsPrev, (int4)(position.x, position.y, wi, 0)).xy;
 
-					float receptiveError = read_imagef(receptiveErrors, inputPosition).x;
+					float error = read_imagef(receptiveErrors, inputPosition).x;
 
-					float2 weight = (float2)(weightPrev.x + learningRates.x * receptiveError,
-						fmax(epsilon, weightPrev.y + learningRates.y * receptiveError * weightPrev.x));
+					float2 weight = (float2)(weightPrev.x + learningRates.x * error,
+						fmax(epsilon, weightPrev.y + learningRates.y * error * weightPrev.x));
 
 					write_imagef(hiddenVisibleWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight.x, weight.y, 0.0f, 0.0f));
 				}
@@ -278,10 +278,10 @@ void kernel rscLearn(read_only image2d_t receptiveErrors, read_only image2d_t re
 				if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
 					float2 weightPrev = read_imagef(hiddenHiddenPrevWeightsPrev, (int4)(position.x, position.y, wi, 0)).xy;
 
-					float receptiveError = read_imagef(recurrentErrors, inputPosition).x;
+					float error = read_imagef(recurrentErrors, inputPosition).x;
 
-					float2 weight = (float2)(weightPrev.x + learningRates.x * receptiveError,
-						fmax(epsilon, weightPrev.y + learningRates.y * receptiveError * weightPrev.x));
+					float2 weight = (float2)(weightPrev.x + learningRates.x * error,
+						fmax(epsilon, weightPrev.y + learningRates.y * error * weightPrev.x));
 
 					write_imagef(hiddenHiddenPrevWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight.x, weight.y, 0.0f, 0.0f));
 				}
@@ -305,7 +305,7 @@ void kernel rscLearn(read_only image2d_t receptiveErrors, read_only image2d_t re
 
 				float weightPrev = read_imagef(hiddenHiddenWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + learningRates.z * state * (input < thisActivation ? 1.0f : 0.0f) - sparsitySquared * thisInhibition);
+				float weight = fmax(0.0f, weightPrev + learningRates.z * (state * (input < thisActivation ? 1.0f : 0.0f) - sparsitySquared * thisInhibition));
 
 				write_imagef(hiddenHiddenWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -316,7 +316,7 @@ void kernel rscLearn(read_only image2d_t receptiveErrors, read_only image2d_t re
 	// Bias
 	float biasPrev = read_imagef(biasesPrev, position).x;
 
-	float bias = learningRates.w * (state - sparsity);
+	float bias = biasPrev + learningRates.w * (state - sparsity);
 
 	write_imagef(biases, position, (float4)(bias));
 }

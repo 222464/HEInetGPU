@@ -14,7 +14,7 @@ void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &progr
 
 void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int width, int height,
 	int receptiveRadius, int recurrentRadius, int inhibitionRadius,
-	sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels)
+	sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator)
 {
 	_kernels = kernels;
 
@@ -35,24 +35,27 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 
 	_inhibitions = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
+	_states = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	_statesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+
 	_receptiveReconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
 	_recurrentReconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 	_receptiveErrors = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
 	_recurrentErrors = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
-	_hiddenVisibleWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveRadius);
-	_hiddenVisibleWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveRadius);
+	_hiddenVisibleWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveSize);
+	_hiddenVisibleWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveSize);
 
 	_hiddenHiddenPrevWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, recurrentSize);
 	_hiddenHiddenPrevWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, recurrentSize);
 
-	_hiddenHiddenWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, inhibitionRadius);
-	_hiddenHiddenWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, inhibitionRadius);
+	_hiddenHiddenWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, inhibitionSize);
+	_hiddenHiddenWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, inhibitionSize);
 	
 	_biases = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 	_biasesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
-	cl_uint4 zeroColor = { 0, 0, 0, 0 };
+	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -67,16 +70,19 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 
 	int index = 0;
 
+	std::uniform_int_distribution<int> seedDist(0, 10000);
+
+	cl_uint2 seed = { seedDist(generator), seedDist(generator) };
+
 	_kernels->_initializeKernel.setArg(index++, _hiddenVisibleWeightsPrev);
 	_kernels->_initializeKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
 	_kernels->_initializeKernel.setArg(index++, _hiddenHiddenWeightsPrev);
 	_kernels->_initializeKernel.setArg(index++, receptiveSize);
 	_kernels->_initializeKernel.setArg(index++, recurrentSize);
 	_kernels->_initializeKernel.setArg(index++, inhibitionSize);
+	_kernels->_initializeKernel.setArg(index++, seed);
 
-	cs.getQueue().enqueueNDRangeKernel(_kernels->_initializeKernel, cl::NullRange, cl::NDRange(_width, _height));
-
-	
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_initializeKernel, cl::NullRange, cl::NDRange(_width, _height));	
 }
 
 void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &inputs) {
@@ -165,7 +171,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 	{
 		int index = 0;
 
-		_kernels->_errorKernel.setArg(index++, _states);
+		_kernels->_errorKernel.setArg(index++, _statesPrev);
 		_kernels->_errorKernel.setArg(index++, _recurrentReconstruction);
 		_kernels->_errorKernel.setArg(index++, _recurrentErrors);
 

@@ -2,15 +2,20 @@
 
 using namespace vis;
 
-void ReceptiveFields::create(const htsl::RecurrentSparseCoder2D &rsc2d) {
-	int rfSize = rsc2d.getReceptiveRadius() * 2 + 1;
+float sigmoid(float x) {
+	return 1.0f / (1.0f + std::exp(-x));
+}
 
-	_image.create(rsc2d.getWidth() * rfSize, rsc2d.getHeight() * rfSize);
+void ReceptiveFields::create(const htsl::RecurrentSparseCoder2D &rsc2d) {
+	int rootRfSize = rsc2d.getReceptiveRadius() * 2 + 1;
+
+	_image.create(rsc2d.getWidth() * rootRfSize, rsc2d.getHeight() * rootRfSize);
 }
 
 void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::ComputeSystem &cs) {
-	int rfSize = rsc2d.getReceptiveRadius() * 2 + 1;
-
+	int rootRfSize = rsc2d.getReceptiveRadius() * 2 + 1;
+	int rfSize = rootRfSize * rootRfSize;
+	
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
 
@@ -25,17 +30,17 @@ void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::Com
 
 	for (int rx = 0; rx < rsc2d.getWidth(); rx++)
 		for (int ry = 0; ry < rsc2d.getHeight(); ry++) {
-			for (int fx = 0; fx < rfSize; fx++)
-				for (int fy = 0; fy < rfSize; fy++) {
-					int index = rx + ry * rsc2d.getWidth() * rfSize + (fx + fy * rfSize) * rsc2d.getWidth() * rsc2d.getHeight();
+			for (int fx = 0; fx < rootRfSize; fx++)
+				for (int fy = 0; fy < rootRfSize; fy++) {
+					int index = (rx + ry * rsc2d.getWidth()) + (fx + fy * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
 
 					sf::Color color;
-					color.r = weightData[index].x * 255;
-					color.g = weightData[index].y * 255;
-					color.b = 255;
+					color.r = sigmoid(weightData[index].x * 5.0f) * 255;
+					color.g = sigmoid(weightData[index].y * 5.0f) * 255;
+					color.b = 0;
 					color.a = 255;
 
-					_image.setPixel(rx * rfSize + fx, ry * rfSize + fy, color);
+					_image.setPixel(rx * rootRfSize + fx, ry * rootRfSize + fy, color);
 				}
 		}
 

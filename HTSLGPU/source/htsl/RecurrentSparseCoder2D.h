@@ -3,6 +3,7 @@
 #include "../system/ComputeProgram.h"
 
 #include <memory>
+#include <random>
 
 namespace htsl {
 	class RecurrentSparseCoder2D {
@@ -49,7 +50,7 @@ namespace htsl {
 
 		void createRandom(int inputWidth, int inputHeight, int width, int height,
 			int receptiveRadius, int recurrentRadius, int inhibitionRadius,
-			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels);
+			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
 		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs);
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity);

@@ -27,13 +27,13 @@ int main() {
 
 	htsl::RecurrentSparseCoder2D rsc2d;
 
-	rsc2d.createRandom(32, 32, 32, 32, 8, 8, 8, cs, rsc2dKernels);
-
 	sf::Image testImage;
 	testImage.loadFromFile("testImage.png");
 
 	int windowWidth = 32;
 	int windowHeight = 32;
+
+	rsc2d.createRandom(windowWidth, windowHeight, 32, 32, 8, 5, 8, cs, rsc2dKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -72,7 +72,7 @@ int main() {
 
 				sf::Color color = testImage.getPixel(x, y);
 
-				imageData[wx + wy * windowWidth] = color.r * 0.333f + color.g * 0.333f + color.b * 0.333f;
+				imageData[wx + wy * windowWidth] = (color.r * 0.333f + color.g * 0.333f + color.b * 0.333f) / 255.0f;
 			}
 
 		cl::size_t<3> zeroCoord;
@@ -86,7 +86,7 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
 		rsc2d.update(cs, inputImage);
-		rsc2d.learn(cs, inputImage, 0.8f, 0.1f, 0.1f, 0.02f, 0.01f);
+		rsc2d.learn(cs, inputImage, 0.7f, 0.05f, 0.005f, 0.002f, 0.03f);
 		rsc2d.stepEnd();
 
 		rfs.render(rsc2d, cs);
