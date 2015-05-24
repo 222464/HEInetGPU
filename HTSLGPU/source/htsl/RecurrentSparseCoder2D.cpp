@@ -91,7 +91,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
 	cl_float2 inputDimsToDims = { static_cast<float>(_width + 1) / static_cast<float>(_inputWidth + 1), static_cast<float>(_height + 1) / static_cast<float>(_inputHeight + 1) };
 
-	cl_int2 reverseReceptiveRadii = { std::ceil(_receptiveRadius * inputDimsToDims.x), std::ceil(_receptiveRadius * inputDimsToDims.y) };
+	cl_int2 reverseReceptiveRadii = { std::ceil((_receptiveRadius + 0.5f) * inputDimsToDims.x + 0.5f), std::ceil((_receptiveRadius + 0.5f) * inputDimsToDims.y + 0.5f) };
 
 	// Activate
 	{

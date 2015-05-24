@@ -166,12 +166,11 @@ void kernel rscReconstructReceptive(read_only image2d_t states, read_only image3
 
 				// Check for containment
 				if (position.x >= fieldLowerBounds.x && position.x <= fieldUpperBounds.x && position.y >= fieldLowerBounds.y && position.y <= fieldUpperBounds.y) {
-					int rdx = position.x - fieldCenter.x;
-					int rdy = position.y - fieldCenter.y;
-
+					int2 diff = position - fieldLowerBounds;
+					
 					float state = read_imagef(states, hiddenPosition).x;
 
-					int wi = (receptiveRadius + rdy) + (receptiveRadius + rdx) * (receptiveRadius * 2 + 1);
+					int wi = diff.y + diff.x * (receptiveRadius * 2 + 1);
 
 					float2 weight = read_imagef(hiddenVisibleWeightsPrev, (int4)(hiddenPosition.x, hiddenPosition.y, wi, 0)).xy;
 

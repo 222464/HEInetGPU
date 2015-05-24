@@ -74,11 +74,11 @@ void PrettySDR::render(sf::RenderTarget &rt, const sf::Vector2f &position) {
 
 	for (int x = 0; x < _width; x++)
 		for (int y = 0; y < _height; y++) {
-			outer.setPosition(position + sf::Vector2f(x * _nodeSpaceSize + _edgeRadius, y * _nodeSpaceSize + _edgeRadius));
+			outer.setPosition(position + sf::Vector2f((x + 0.5f) * _nodeSpaceSize, (y + 0.5f) * _nodeSpaceSize));
 
 			rt.draw(outer);
 
-			inner.setPosition(position + sf::Vector2f(x * _nodeSpaceSize + _edgeRadius, y * _nodeSpaceSize + _edgeRadius));
+			inner.setPosition(position + sf::Vector2f((x + 0.5f) * _nodeSpaceSize, (y + 0.5f) * _nodeSpaceSize));
 
 			inner.setFillColor(sf::Color(_nodeInnerColor.r, _nodeInnerColor.g, _nodeInnerColor.b, 255 * at(x, y)));
 
