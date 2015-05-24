@@ -86,7 +86,7 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
 		rsc2d.update(cs, inputImage);
-		rsc2d.learn(cs, inputImage, 0.7f, 0.05f, 0.005f, 0.002f, 0.03f);
+		rsc2d.learn(cs, inputImage, 0.9f, 0.1f, 0.01f, 0.03f, 0.03f);
 		rsc2d.stepEnd();
 
 		rfs.render(rsc2d, cs);
