@@ -153,8 +153,6 @@ void kernel rscReconstructReceptive(read_only image2d_t states, read_only image3
 	float sum = 0.0f;
 	float div = 0.0f;
 
-	int wi = 0;
-
 	for (int dx = -reverseReceptiveRadii.x; dx <= reverseReceptiveRadii.x; dx++)
 		for (int dy = -reverseReceptiveRadii.y; dy <= reverseReceptiveRadii.y; dy++) {
 			int2 hiddenPosition = (int2)(hiddenCenterPosition.x + dx, hiddenCenterPosition.y + dy);
@@ -181,8 +179,6 @@ void kernel rscReconstructReceptive(read_only image2d_t states, read_only image3
 					div += state * weight.y;
 				}
 			}
-
-			wi++;
 		}
 
 	float recon = sum / fmax(div, epsilon);
@@ -249,7 +245,6 @@ void kernel rscLearn(read_only image2d_t receptiveErrors, read_only image2d_t re
 
 	float state = read_imagef(states, position).x;
 
-	// Only modify weights if state is 1
 	int wi = 0;
 
 	for (int dx = -receptiveRadius; dx <= receptiveRadius; dx++)

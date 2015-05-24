@@ -88,7 +88,7 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &inputs) {
 	cl_int2 inputDims = { _inputWidth, _inputHeight };
 	cl_int2 dims = { _width, _height };
-	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height - 1) };
+	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
 	cl_float2 inputDimsToDims = { static_cast<float>(_width + 1) / static_cast<float>(_inputWidth + 1), static_cast<float>(_height + 1) / static_cast<float>(_inputHeight + 1) };
 
 	cl_int2 reverseReceptiveRadii = { std::ceil(_receptiveRadius * inputDimsToDims.x), std::ceil(_receptiveRadius * inputDimsToDims.y) };
@@ -183,7 +183,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity) {
 	cl_int2 inputDims = { _inputWidth, _inputHeight };
 	cl_int2 dims = { _width, _height };
-	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height - 1) };
+	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
 	cl_float4 learningRates = { alpha, beta, gamma, delta };
 
 	// Learn

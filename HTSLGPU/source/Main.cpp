@@ -34,7 +34,7 @@ int main() {
 	int windowWidth = 32;
 	int windowHeight = 32;
 
-	rsc2d.createRandom(windowWidth, windowHeight, 32, 32, 8, 5, 8, cs, rsc2dKernels, generator);
+	rsc2d.createRandom(windowWidth, windowHeight, 16, 16, 8, 6, 8, cs, rsc2dKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -50,7 +50,10 @@ int main() {
 
 	sf::RenderWindow window;
 
-	window.create(sf::VideoMode(800, 600), "HTSLGPU", sf::Style::Default);
+	sf::ContextSettings contextSettings;
+	contextSettings.antialiasingLevel = 8;
+
+	window.create(sf::VideoMode(800, 600), "HTSLGPU", sf::Style::Default, contextSettings);
 
 	bool quit = false;
 
@@ -91,7 +94,7 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
 		rsc2d.update(cs, inputImage);
-		rsc2d.learn(cs, inputImage, 0.2f, 0.08f, 0.01f, 0.05f, 0.03f);
+		rsc2d.learn(cs, inputImage, 0.4f, 0.2f, 0.1f, 0.05f, 0.05f);
 		rsc2d.stepEnd();
 
 		rfs.render(rsc2d, cs);
@@ -105,7 +108,7 @@ int main() {
 
 		window.draw(rfsSprite);
 
-		psdr.render(window, sf::Vector2f(0.0f, 0.0f));
+		//psdr.render(window, sf::Vector2f(0.0f, 0.0f));
 
 		window.display();
 	}
