@@ -4,11 +4,8 @@ using namespace htsl;
 
 void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 	_initializeKernel = cl::Kernel(program.getProgram(), "rscInitialize");
+	_excitationKernel = cl::Kernel(program.getProgram(), "rscExcitation");
 	_activateKernel = cl::Kernel(program.getProgram(), "rscActivate");
-	_reconstructReceptiveKernel = cl::Kernel(program.getProgram(), "rscReconstructReceptive");
-	_reconstructRecurrentKernel = cl::Kernel(program.getProgram(), "rscReconstructRecurrent");
-	_errorKernel = cl::Kernel(program.getProgram(), "rscError");
-	_inhibitKernel = cl::Kernel(program.getProgram(), "rscInhibit");
 	_learnKernel = cl::Kernel(program.getProgram(), "rscLearn");
 }
 
@@ -31,23 +28,23 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	int recurrentSize = std::pow(_recurrentRadius * 2 + 1, 2);
 	int inhibitionSize = std::pow(_inhibitionRadius * 2 + 1, 2);
 
+	_excitations = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	
 	_activations = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	_activationsPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
-	_inhibitions = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	_spikes = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	_spikesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	_spikesRecurrentPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
 	_states = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 	_statesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
+	
+	_hiddenVisibleWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, receptiveSize);
+	_hiddenVisibleWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, receptiveSize);
 
-	_receptiveReconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
-	_recurrentReconstruction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
-	_receptiveErrors = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _inputWidth, _inputHeight);
-	_recurrentErrors = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
-
-	_hiddenVisibleWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveSize);
-	_hiddenVisibleWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, receptiveSize);
-
-	_hiddenHiddenPrevWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, recurrentSize);
-	_hiddenHiddenPrevWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_RG, CL_FLOAT), _width, _height, recurrentSize);
+	_hiddenHiddenPrevWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, recurrentSize);
+	_hiddenHiddenPrevWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, recurrentSize);
 
 	_hiddenHiddenWeights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, inhibitionSize);
 	_hiddenHiddenWeightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height, inhibitionSize);
@@ -56,17 +53,22 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	_biasesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+	cl_float4 oneColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
 
-	cl::size_t<3> dims;
-	dims[0] = _width;
-	dims[1] = _height;
-	dims[2] = 1;
+	cl::size_t<3> dimsCoord;
+	dimsCoord[0] = _width;
+	dimsCoord[1] = _height;
+	dimsCoord[2] = 1;
 
-	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dims);
-	cs.getQueue().enqueueFillImage(_biasesPrev, zeroColor, zeroCoord, dims);
+	cs.getQueue().enqueueFillImage(_activationsPrev, zeroColor, zeroCoord, dimsCoord);
+	cs.getQueue().enqueueFillImage(_spikesPrev, zeroColor, zeroCoord, dimsCoord);
+	cs.getQueue().enqueueFillImage(_spikesRecurrentPrev, zeroColor, zeroCoord, dimsCoord);
+	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dimsCoord);
+
+	cs.getQueue().enqueueFillImage(_biasesPrev, oneColor, zeroCoord, dimsCoord);
 
 	int index = 0;
 
@@ -85,7 +87,7 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_initializeKernel, cl::NullRange, cl::NDRange(_width, _height));	
 }
 
-void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &inputs) {
+void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &inputs, float dt, int iterations) {
 	cl_int2 inputDims = { _inputWidth, _inputHeight };
 	cl_int2 dims = { _width, _height };
 	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
@@ -93,90 +95,69 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 
 	cl_int2 reverseReceptiveRadii = { std::ceil((_receptiveRadius + 0.5f) * inputDimsToDims.x + 0.5f), std::ceil((_receptiveRadius + 0.5f) * inputDimsToDims.y + 0.5f) };
 
-	// Activate
+	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	cl::size_t<3> zeroCoord;
+	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+	cl::size_t<3> dimsCoord;
+	dimsCoord[0] = _width;
+	dimsCoord[1] = _height;
+	dimsCoord[2] = 1;
+
+	cs.getQueue().enqueueFillImage(_activationsPrev, zeroColor, zeroCoord, dimsCoord);
+	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dimsCoord);
+	cs.getQueue().enqueueFillImage(_spikesPrev, zeroColor, zeroCoord, dimsCoord);
+
+	// Excite
 	{
 		int index = 0;
 
-		_kernels->_activateKernel.setArg(index++, inputs);
-		_kernels->_activateKernel.setArg(index++, _statesPrev);
-		_kernels->_activateKernel.setArg(index++, _hiddenVisibleWeightsPrev);
-		_kernels->_activateKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
-		_kernels->_activateKernel.setArg(index++, _activations);
-		_kernels->_activateKernel.setArg(index++, inputDims);
-		_kernels->_activateKernel.setArg(index++, dims);
-		_kernels->_activateKernel.setArg(index++, dimsToInputDims);
-		_kernels->_activateKernel.setArg(index++, _receptiveRadius);
-		_kernels->_activateKernel.setArg(index++, _recurrentRadius);
+		_kernels->_excitationKernel.setArg(index++, inputs);
+		_kernels->_excitationKernel.setArg(index++, _spikesRecurrentPrev);
+		_kernels->_excitationKernel.setArg(index++, _hiddenVisibleWeightsPrev);
+		_kernels->_excitationKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
+		_kernels->_excitationKernel.setArg(index++, _excitations);
+		_kernels->_excitationKernel.setArg(index++, inputDims);
+		_kernels->_excitationKernel.setArg(index++, dims);
+		_kernels->_excitationKernel.setArg(index++, dimsToInputDims);
+		_kernels->_excitationKernel.setArg(index++, _receptiveRadius);
+		_kernels->_excitationKernel.setArg(index++, _recurrentRadius);
 
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_activateKernel, cl::NullRange, cl::NDRange(_width, _height));
+		cs.getQueue().enqueueNDRangeKernel(_kernels->_excitationKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 
-	// Inhibit
-	{
-		int index = 0;
+	float iterationsInv = 1.0f / iterations;
+	float inhibitionRadiusInv = 1.0f / _inhibitionRadius;
 
-		_kernels->_inhibitKernel.setArg(index++, _activations);
-		_kernels->_inhibitKernel.setArg(index++, _hiddenHiddenWeightsPrev);
-		_kernels->_inhibitKernel.setArg(index++, _biasesPrev);
-		_kernels->_inhibitKernel.setArg(index++, _states);
-		_kernels->_inhibitKernel.setArg(index++, _inhibitions);
-		_kernels->_inhibitKernel.setArg(index++, dims);
-		_kernels->_inhibitKernel.setArg(index++, _inhibitionRadius);
-		_kernels->_inhibitKernel.setArg(index++, 1.0f / _inhibitionRadius);
+	for (int i = 0; i < iterations; i++) {
+		// Activate
+		{
+			int index = 0;
 
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_inhibitKernel, cl::NullRange, cl::NDRange(_width, _height));
-	}
+			_kernels->_activateKernel.setArg(index++, _excitations);
+			_kernels->_activateKernel.setArg(index++, _statesPrev);
+			_kernels->_activateKernel.setArg(index++, _activationsPrev);
+			_kernels->_activateKernel.setArg(index++, _spikesPrev);
+			_kernels->_activateKernel.setArg(index++, _hiddenHiddenWeightsPrev);
+			_kernels->_activateKernel.setArg(index++, _biasesPrev);
+			_kernels->_activateKernel.setArg(index++, _activations);
+			_kernels->_activateKernel.setArg(index++, _spikes);
+			_kernels->_activateKernel.setArg(index++, _states);
+			_kernels->_activateKernel.setArg(index++, dims);
+			_kernels->_activateKernel.setArg(index++, _inhibitionRadius);
+			_kernels->_activateKernel.setArg(index++, inhibitionRadiusInv);
+			_kernels->_activateKernel.setArg(index++, dt);
+			_kernels->_activateKernel.setArg(index++, iterationsInv);
 
-	// Reconstruction - receptive
-	{
-		int index = 0;
+			cs.getQueue().enqueueNDRangeKernel(_kernels->_activateKernel, cl::NullRange, cl::NDRange(_width, _height));
+		}
 
-		_kernels->_reconstructReceptiveKernel.setArg(index++, _states);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, _hiddenVisibleWeightsPrev);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, _receptiveReconstruction);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, inputDims);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, dims);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, dimsToInputDims);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, inputDimsToDims);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, _receptiveRadius);
-		_kernels->_reconstructReceptiveKernel.setArg(index++, reverseReceptiveRadii);
-
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_reconstructReceptiveKernel, cl::NullRange, cl::NDRange(_inputWidth, _inputHeight));
-	}
-
-	// Reconstruction - recurrent
-	{
-		int index = 0;
-
-		_kernels->_reconstructRecurrentKernel.setArg(index++, _states);
-		_kernels->_reconstructRecurrentKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
-		_kernels->_reconstructRecurrentKernel.setArg(index++, _recurrentReconstruction);
-		_kernels->_reconstructRecurrentKernel.setArg(index++, dims);
-		_kernels->_reconstructRecurrentKernel.setArg(index++, _recurrentRadius);
-
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_reconstructRecurrentKernel, cl::NullRange, cl::NDRange(_width, _height));
-	}
-
-	// Error - receptive
-	{
-		int index = 0;
-
-		_kernels->_errorKernel.setArg(index++, inputs);
-		_kernels->_errorKernel.setArg(index++, _receptiveReconstruction);
-		_kernels->_errorKernel.setArg(index++, _receptiveErrors);
-		
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_errorKernel, cl::NullRange, cl::NDRange(_inputWidth, _inputHeight));
-	}
-
-	// Error - recurrent
-	{
-		int index = 0;
-
-		_kernels->_errorKernel.setArg(index++, _statesPrev);
-		_kernels->_errorKernel.setArg(index++, _recurrentReconstruction);
-		_kernels->_errorKernel.setArg(index++, _recurrentErrors);
-
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_errorKernel, cl::NullRange, cl::NDRange(_width, _height));
+		if (i != iterations - 1) {
+			std::swap(_activations, _activationsPrev);
+			std::swap(_states, _statesPrev);
+			std::swap(_spikes, _spikesPrev);
+		}
 	}
 }
 
@@ -190,11 +171,9 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &in
 	{
 		int index = 0;
 
-		_kernels->_learnKernel.setArg(index++, _receptiveErrors);
-		_kernels->_learnKernel.setArg(index++, _recurrentErrors);
-		_kernels->_learnKernel.setArg(index++, _activations);
-		_kernels->_learnKernel.setArg(index++, _inhibitions);
-		_kernels->_learnKernel.setArg(index++, _states);
+		_kernels->_learnKernel.setArg(index++, inputs);
+		_kernels->_learnKernel.setArg(index++, _spikes);
+		_kernels->_learnKernel.setArg(index++, _spikesRecurrentPrev);
 		_kernels->_learnKernel.setArg(index++, _hiddenVisibleWeightsPrev);
 		_kernels->_learnKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
 		_kernels->_learnKernel.setArg(index++, _hiddenHiddenWeightsPrev);
@@ -215,12 +194,13 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &in
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_learnKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
-}
 
-void RecurrentSparseCoder2D::stepEnd() {
-	std::swap(_states, _statesPrev);
 	std::swap(_hiddenVisibleWeights, _hiddenVisibleWeightsPrev);
 	std::swap(_hiddenHiddenPrevWeights, _hiddenHiddenPrevWeightsPrev);
 	std::swap(_hiddenHiddenWeights, _hiddenHiddenWeightsPrev);
 	std::swap(_biases, _biasesPrev);
+}
+
+void RecurrentSparseCoder2D::stepEnd() {
+	std::swap(_spikes, _spikesRecurrentPrev);
 }

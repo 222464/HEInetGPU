@@ -19,7 +19,7 @@ void PrettySDR::loadFromImage(sys::ComputeSystem &cs, const htsl::RecurrentSpars
 	sdrDims[1] = rsc2d.getHeight();
 	sdrDims[2] = 1;
 
-	cs.getQueue().enqueueReadImage(rsc2d._states, CL_TRUE, zeroCoord, sdrDims, 0, 0, _nodes.data());
+	cs.getQueue().enqueueReadImage(rsc2d._spikes, CL_TRUE, zeroCoord, sdrDims, 0, 0, _nodes.data());
 }
 
 void PrettySDR::render(sf::RenderTarget &rt, const sf::Vector2f &position) {

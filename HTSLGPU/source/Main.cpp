@@ -34,7 +34,7 @@ int main() {
 	int windowWidth = 32;
 	int windowHeight = 32;
 
-	rsc2d.createRandom(windowWidth, windowHeight, 32, 32, 8, 6, 8, cs, rsc2dKernels, generator);
+	rsc2d.createRandom(windowWidth, windowHeight, 32, 32, 8, 8, 8, cs, rsc2dKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -93,8 +93,8 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
-		rsc2d.update(cs, inputImage);
-		rsc2d.learn(cs, inputImage, 0.15f, 0.02f, 0.5f, 0.002f, 0.05f);
+		rsc2d.update(cs, inputImage, 0.1f);
+		rsc2d.learn(cs, inputImage, 0.01f, 0.01f, 1.0f, 0.1f, 0.05f);
 		rsc2d.stepEnd();
 
 		rfs.render(rsc2d, cs);

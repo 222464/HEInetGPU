@@ -24,7 +24,7 @@ void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::Com
 	weightDims[1] = rsc2d.getHeight();
 	weightDims[2] = rfSize;
 
-	std::vector<cl_float2> weightData(weightDims[0] * weightDims[1] * weightDims[2]);
+	std::vector<float> weightData(weightDims[0] * weightDims[1] * weightDims[2]);
 
 	cs.getQueue().enqueueReadImage(rsc2d._hiddenVisibleWeights, CL_TRUE, zeroCoord, weightDims, 0, 0, weightData.data());
 
@@ -37,9 +37,9 @@ void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::Com
 				for (int fy = 0; fy < rootRfSize; fy++) {
 					int index = (rx + ry * rsc2d.getWidth()) + (fy + fx * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
 
-					minimum = std::min(minimum, weightData[index].x);
+					minimum = std::min(minimum, weightData[index]);
 					//minimum = std::min(minimum, weightData[index].y);
-					maximum = std::max(maximum, weightData[index].x);
+					maximum = std::max(maximum, weightData[index]);
 					//maximum = std::max(maximum, weightData[index].y);
 				}
 		}
@@ -53,7 +53,7 @@ void ReceptiveFields::render(const htsl::RecurrentSparseCoder2D &rsc2d, sys::Com
 					int index = (rx + ry * rsc2d.getWidth()) + (fy + fx * rootRfSize) * rsc2d.getWidth() * rsc2d.getHeight();
 
 					sf::Color color;
-					color.r = (weightData[index].x - minimum) * mult;
+					color.r = (weightData[index] - minimum) * mult;
 					color.g = color.r;
 					color.b = color.r;
 					color.a = 255;

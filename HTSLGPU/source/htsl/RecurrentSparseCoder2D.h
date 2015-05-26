@@ -10,11 +10,8 @@ namespace htsl {
 	public:
 		struct Kernels {
 			cl::Kernel _initializeKernel;
+			cl::Kernel _excitationKernel;
 			cl::Kernel _activateKernel;
-			cl::Kernel _reconstructReceptiveKernel;
-			cl::Kernel _reconstructRecurrentKernel;
-			cl::Kernel _errorKernel;
-			cl::Kernel _inhibitKernel;
 			cl::Kernel _learnKernel;
 
 			void loadFromProgram(sys::ComputeProgram &program);
@@ -28,16 +25,17 @@ namespace htsl {
 		int _receptiveRadius, _recurrentRadius, _inhibitionRadius;
 
 	public:
+		cl::Image2D _excitations;
+
 		cl::Image2D _activations;
-		cl::Image2D _inhibitions;
+		cl::Image2D _activationsPrev;
+
+		cl::Image2D _spikes;
+		cl::Image2D _spikesPrev;
+		cl::Image2D _spikesRecurrentPrev;
 
 		cl::Image2D _states;
 		cl::Image2D _statesPrev;
-
-		cl::Image2D _receptiveReconstruction;
-		cl::Image2D _recurrentReconstruction;
-		cl::Image2D _receptiveErrors;
-		cl::Image2D _recurrentErrors;
 
 		cl::Image3D _hiddenVisibleWeights;
 		cl::Image3D _hiddenVisibleWeightsPrev;
@@ -52,7 +50,7 @@ namespace htsl {
 			int receptiveRadius, int recurrentRadius, int inhibitionRadius,
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs, float dt, int iterations = 50);
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity);
 		void stepEnd();
 
