@@ -1,5 +1,3 @@
-constant float epsilon = 0.00001f;
-
 float randFloat(uint2* state) {
 	const float invMaxInt = 1.0f / 4294967296.0f;
 	uint x = (*state).x * 17 + (*state).y * 13123;
@@ -11,14 +9,10 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
-float sigmoid(float x) {
-	return 1.0f / (1.0f + exp(-x));
-}
-
 void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	write_only image3d_t hiddenHiddenPrevWeights,
 	write_only image3d_t hiddenHiddenWeights,
-	int receptiveSize, int recurrentSize, int inhibitionSize, uint2 seed)
+	int receptiveSize, int recurrentSize, int inhibitionSize, float ffWeight, float lWeight, uint2 seed)
 {
 	uint2 seedValue = seed + (uint2)(get_global_id(0) * 29 + 12, get_global_id(1) * 16 + 23) * 36;
 
@@ -27,7 +21,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < receptiveSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * 2.0f - 1.0f;
+		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
 
 		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight));
 	}
@@ -35,7 +29,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < recurrentSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * 2.0f - 1.0f;
+		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
 
 		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight));
 	}
@@ -43,7 +37,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < inhibitionSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue);
+		float weight = lWeight * randFloat(&seedValue);
 
 		write_imagef(hiddenHiddenWeights, weightPosition, (float4)(weight));
 	}
@@ -126,9 +120,9 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 
 				float weight = read_imagef(hiddenHiddenWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
 
-				//float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
+				float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
 
-				inhibition += weight * input;
+				inhibition += falloff * weight * input;
 			}
 
 			wi++;

@@ -10,7 +10,7 @@ void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &progr
 }
 
 void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int width, int height,
-	int receptiveRadius, int recurrentRadius, int inhibitionRadius,
+	int receptiveRadius, int recurrentRadius, int inhibitionRadius, float ffWeight, float lWeight, float initBias,
 	sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator)
 {
 	_kernels = kernels;
@@ -53,7 +53,7 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	_biasesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-	cl_float4 oneColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	cl_float4 biasColor = { initBias, initBias, initBias, initBias };
 
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -68,7 +68,7 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	cs.getQueue().enqueueFillImage(_spikesRecurrentPrev, zeroColor, zeroCoord, dimsCoord);
 	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dimsCoord);
 
-	cs.getQueue().enqueueFillImage(_biasesPrev, oneColor, zeroCoord, dimsCoord);
+	cs.getQueue().enqueueFillImage(_biasesPrev, biasColor, zeroCoord, dimsCoord);
 
 	int index = 0;
 
@@ -82,6 +82,8 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	_kernels->_initializeKernel.setArg(index++, receptiveSize);
 	_kernels->_initializeKernel.setArg(index++, recurrentSize);
 	_kernels->_initializeKernel.setArg(index++, inhibitionSize);
+	_kernels->_initializeKernel.setArg(index++, ffWeight);
+	_kernels->_initializeKernel.setArg(index++, lWeight);
 	_kernels->_initializeKernel.setArg(index++, seed);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_initializeKernel, cl::NullRange, cl::NDRange(_width, _height));	
@@ -127,7 +129,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_excitationKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 
-	float iterationsInv = 1.0f / iterations;
+	//float iterationsInv = 1.0f / iterations;
 	float inhibitionRadiusInv = 1.0f / _inhibitionRadius;
 
 	for (int i = 0; i < iterations; i++) {
@@ -148,7 +150,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 			_kernels->_activateKernel.setArg(index++, _inhibitionRadius);
 			_kernels->_activateKernel.setArg(index++, inhibitionRadiusInv);
 			_kernels->_activateKernel.setArg(index++, dt);
-			_kernels->_activateKernel.setArg(index++, iterationsInv);
+			_kernels->_activateKernel.setArg(index++, 1.0f); //iterationsInv
 
 			cs.getQueue().enqueueNDRangeKernel(_kernels->_activateKernel, cl::NullRange, cl::NDRange(_width, _height));
 		}

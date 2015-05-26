@@ -47,7 +47,7 @@ namespace htsl {
 		cl::Image2D _biasesPrev;
 
 		void createRandom(int inputWidth, int inputHeight, int width, int height,
-			int receptiveRadius, int recurrentRadius, int inhibitionRadius,
+			int receptiveRadius, int recurrentRadius, int inhibitionRadius, float ffWeight, float lWeight, float initBias,
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
 		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs, float dt, int iterations = 50);
