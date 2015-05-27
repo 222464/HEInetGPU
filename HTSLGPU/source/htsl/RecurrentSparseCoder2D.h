@@ -51,7 +51,7 @@ namespace htsl {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
 		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs, float dt, int iterations = 50);
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity);
+		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity, int iterations = 50);
 		void stepEnd();
 
 		int getInputWidth() const {

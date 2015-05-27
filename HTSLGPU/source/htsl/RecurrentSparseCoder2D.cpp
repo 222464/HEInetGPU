@@ -93,9 +93,6 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 	cl_int2 inputDims = { _inputWidth, _inputHeight };
 	cl_int2 dims = { _width, _height };
 	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
-	cl_float2 inputDimsToDims = { static_cast<float>(_width + 1) / static_cast<float>(_inputWidth + 1), static_cast<float>(_height + 1) / static_cast<float>(_inputHeight + 1) };
-
-	cl_int2 reverseReceptiveRadii = { std::ceil((_receptiveRadius + 0.5f) * inputDimsToDims.x + 0.5f), std::ceil((_receptiveRadius + 0.5f) * inputDimsToDims.y + 0.5f) };
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 
@@ -111,6 +108,8 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dimsCoord);
 	cs.getQueue().enqueueFillImage(_spikesPrev, zeroColor, zeroCoord, dimsCoord);
 
+	float spikeNorm = 1.0f / iterations;
+
 	// Excite
 	{
 		int index = 0;
@@ -125,11 +124,11 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 		_kernels->_excitationKernel.setArg(index++, dimsToInputDims);
 		_kernels->_excitationKernel.setArg(index++, _receptiveRadius);
 		_kernels->_excitationKernel.setArg(index++, _recurrentRadius);
+		_kernels->_excitationKernel.setArg(index++, spikeNorm);
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_excitationKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 
-	//float iterationsInv = 1.0f / iterations;
 	float inhibitionRadiusInv = 1.0f / _inhibitionRadius;
 
 	for (int i = 0; i < iterations; i++) {
@@ -150,7 +149,6 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 			_kernels->_activateKernel.setArg(index++, _inhibitionRadius);
 			_kernels->_activateKernel.setArg(index++, inhibitionRadiusInv);
 			_kernels->_activateKernel.setArg(index++, dt);
-			_kernels->_activateKernel.setArg(index++, 1.0f); //iterationsInv
 
 			cs.getQueue().enqueueNDRangeKernel(_kernels->_activateKernel, cl::NullRange, cl::NDRange(_width, _height));
 		}
@@ -163,11 +161,13 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 	}
 }
 
-void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity) {
+void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity, int iterations) {
 	cl_int2 inputDims = { _inputWidth, _inputHeight };
 	cl_int2 dims = { _width, _height };
 	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
 	cl_float4 learningRates = { alpha, beta, gamma, delta };
+
+	float spikeNorm = 1.0f / iterations;
 
 	// Learn
 	{
@@ -190,6 +190,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &in
 		_kernels->_learnKernel.setArg(index++, _receptiveRadius);
 		_kernels->_learnKernel.setArg(index++, _recurrentRadius);
 		_kernels->_learnKernel.setArg(index++, _inhibitionRadius);
+		_kernels->_learnKernel.setArg(index++, spikeNorm);
 		_kernels->_learnKernel.setArg(index++, learningRates);
 		_kernels->_learnKernel.setArg(index++, sparsity);
 		_kernels->_learnKernel.setArg(index++, sparsity * sparsity);

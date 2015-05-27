@@ -21,7 +21,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < receptiveSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
+		float weight = ffWeight * randFloat(&seedValue);
 
 		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight));
 	}
@@ -29,7 +29,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < recurrentSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
+		float weight = ffWeight * randFloat(&seedValue);
 
 		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight));
 	}
@@ -47,11 +47,11 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev,
 	write_only image2d_t excitations,
 	int2 inputDims, int2 dims, float2 dimsToInputDims,
-	int receptiveRadius, int recurrentRadius)
+	int receptiveRadius, int recurrentRadius, float spikeNorm)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 inputCenterPosition = (int2)((position.x + 0.5f) * dimsToInputDims.x + 0.5f, (position.y + 0.5f) * dimsToInputDims.y + 0.5f);
+	int2 inputCenterPosition = (int2)(position.x * dimsToInputDims.x + 0.5f, position.y * dimsToInputDims.y + 0.5f);
 
 	float excitation = 0.0f;
 
@@ -76,10 +76,13 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 
 	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
 		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
+			if (dx == 0 && dy == 0)
+				continue;
+
 			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
 
 			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
-				float input = read_imagef(spikesRecurrentPrev, inputPosition).x;
+				float input = read_imagef(spikesRecurrentPrev, inputPosition).x * spikeNorm;
 
 				float weight = read_imagef(hiddenHiddenPrevWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
 
@@ -98,7 +101,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 	write_only image2d_t activations, write_only image2d_t spikes, write_only image2d_t states,
 	int2 dims,
 	int inhibitionRadius, float inhibitionRadiusInv,
-	float dt, float iterationsInv)
+	float dt)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -120,9 +123,9 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 
 				float weight = read_imagef(hiddenHiddenWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
 
-				float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
+				//float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
 
-				inhibition += falloff * weight * input;
+				inhibition += weight * input;
 			}
 
 			wi++;
@@ -147,7 +150,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 
 	float spikeAccumPrev = read_imagef(spikesPrev, position).x;
 
-	float spikeAccum = spikeAccumPrev + spike * iterationsInv;
+	float spikeAccum = spikeAccumPrev + spike;
 
 	write_imagef(spikes, position, (float4)(spikeAccum));
 }
@@ -156,12 +159,12 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev, read_only image3d_t hiddenHiddenWeightsPrev, read_only image2d_t biasesPrev,
 	write_only image3d_t hiddenVisibleWeights, write_only image3d_t hiddenHiddenPrevWeights, write_only image3d_t hiddenHiddenWeights, write_only image2d_t biases,
 	int2 inputDims, int2 dims, float2 dimsToInputDims,
-	int receptiveRadius, int recurrentRadius, int inhibitionRadius,
+	int receptiveRadius, int recurrentRadius, int inhibitionRadius, float spikeNorm,
 	float4 learningRates, float sparsity, float sparsitySquared)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 inputCenterPosition = (int2)((position.x + 0.5f) * dimsToInputDims.x + 0.5f, (position.y + 0.5f) * dimsToInputDims.y + 0.5f);
+	int2 inputCenterPosition = (int2)(position.x * dimsToInputDims.x + 0.5f, position.y * dimsToInputDims.y + 0.5f);
 
 	float spike = read_imagef(spikes, position).x;
 
@@ -193,7 +196,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
 				float weightPrev = read_imagef(hiddenHiddenPrevWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
 
-				float input = read_imagef(spikesRecurrentPrev, inputPosition).x;
+				float input = read_imagef(spikesRecurrentPrev, inputPosition).x * spikeNorm;
 			
 				float weight = weightPrev + learningRates.x * spike * (input - spike * weightPrev);
 
