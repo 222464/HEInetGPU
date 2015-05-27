@@ -1,8 +1,30 @@
+/*
+HTSLGPU
+Copyright (C) 2015 Eric Laukien
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software. If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+*/
+
 #include "RecurrentSparseCoder2D.h"
 
 using namespace htsl;
 
 void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &program) {
+	// Create kernels
 	_initializeKernel = cl::Kernel(program.getProgram(), "rscInitialize");
 	_excitationKernel = cl::Kernel(program.getProgram(), "rscExcitation");
 	_activateKernel = cl::Kernel(program.getProgram(), "rscActivate");
@@ -24,10 +46,12 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	_recurrentRadius = recurrentRadius;
 	_inhibitionRadius = inhibitionRadius;
 
+	// Total size (number of weights) in receptive fields
 	int receptiveSize = std::pow(_receptiveRadius * 2 + 1, 2);
 	int recurrentSize = std::pow(_recurrentRadius * 2 + 1, 2);
 	int inhibitionSize = std::pow(_inhibitionRadius * 2 + 1, 2);
 
+	// Create images
 	_excitations = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
 	
 	_activations = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _width, _height);
@@ -63,6 +87,7 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 	dimsCoord[1] = _height;
 	dimsCoord[2] = 1;
 
+	// Clear to defaults (only prev buffers, since other ones will be written to immediately)
 	cs.getQueue().enqueueFillImage(_activationsPrev, zeroColor, zeroCoord, dimsCoord);
 	cs.getQueue().enqueueFillImage(_spikesPrev, zeroColor, zeroCoord, dimsCoord);
 	cs.getQueue().enqueueFillImage(_spikesRecurrentPrev, zeroColor, zeroCoord, dimsCoord);
@@ -74,8 +99,10 @@ void RecurrentSparseCoder2D::createRandom(int inputWidth, int inputHeight, int w
 
 	std::uniform_int_distribution<int> seedDist(0, 10000);
 
+	// Weight RNG seed
 	cl_uint2 seed = { seedDist(generator), seedDist(generator) };
 
+	// Initialize weights
 	_kernels->_initializeKernel.setArg(index++, _hiddenVisibleWeightsPrev);
 	_kernels->_initializeKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
 	_kernels->_initializeKernel.setArg(index++, _hiddenHiddenWeightsPrev);
@@ -104,10 +131,12 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 	dimsCoord[1] = _height;
 	dimsCoord[2] = 1;
 
+	// Clear images
 	cs.getQueue().enqueueFillImage(_activationsPrev, zeroColor, zeroCoord, dimsCoord);
 	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dimsCoord);
 	cs.getQueue().enqueueFillImage(_spikesPrev, zeroColor, zeroCoord, dimsCoord);
 
+	// Used to normalize the spikes for recurrent input
 	float spikeNorm = 1.0f / iterations;
 
 	// Excite
@@ -129,8 +158,10 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_excitationKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 
+	// Used for falloff calculation
 	float inhibitionRadiusInv = 1.0f / _inhibitionRadius;
 
+	// Iterative solving
 	for (int i = 0; i < iterations; i++) {
 		// Activate
 		{
@@ -153,6 +184,7 @@ void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &i
 			cs.getQueue().enqueueNDRangeKernel(_kernels->_activateKernel, cl::NullRange, cl::NDRange(_width, _height));
 		}
 
+		// Don't swap on last iteration, since there is no subsequent one
 		if (i != iterations - 1) {
 			std::swap(_activations, _activationsPrev);
 			std::swap(_states, _statesPrev);
@@ -198,6 +230,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &in
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_learnKernel, cl::NullRange, cl::NDRange(_width, _height));
 	}
 
+	// Swap buffers
 	std::swap(_hiddenVisibleWeights, _hiddenVisibleWeightsPrev);
 	std::swap(_hiddenHiddenPrevWeights, _hiddenHiddenPrevWeightsPrev);
 	std::swap(_hiddenHiddenWeights, _hiddenHiddenWeightsPrev);
@@ -205,5 +238,6 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &in
 }
 
 void RecurrentSparseCoder2D::stepEnd() {
+	// Swap buffers
 	std::swap(_spikes, _spikesRecurrentPrev);
 }

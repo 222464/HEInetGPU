@@ -1,3 +1,25 @@
+/*
+HTSLGPU
+Copyright (C) 2015 Eric Laukien
+
+This software is provided 'as-is', without any express or implied
+warranty.  In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software. If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution.
+*/
+
+// RNG
 float randFloat(uint2* state) {
 	const float invMaxInt = 1.0f / 4294967296.0f;
 	uint x = (*state).x * 17 + (*state).y * 13123;
@@ -9,6 +31,7 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
+// Random weight initialization
 void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	write_only image3d_t hiddenHiddenPrevWeights,
 	write_only image3d_t hiddenHiddenWeights,
@@ -18,6 +41,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
+	// Receptive weights (feed forward)
 	for (int wi = 0; wi < receptiveSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
@@ -26,6 +50,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight));
 	}
 
+	// Recurrent weights (feed forward)
 	for (int wi = 0; wi < recurrentSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
@@ -34,6 +59,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight));
 	}
 
+	// Inhibitory weights (lateral)
 	for (int wi = 0; wi < inhibitionSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
@@ -43,6 +69,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	}
 }
 
+// Calculate excitation (doesn't change between sparse code solving iterations)
 void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikesRecurrentPrev,
 	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev,
 	write_only image2d_t excitations,
@@ -57,6 +84,7 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 
 	int wi = 0;
 
+	// Receptive
 	for (int dx = -receptiveRadius; dx <= receptiveRadius; dx++)
 		for (int dy = -receptiveRadius; dy <= receptiveRadius; dy++) {
 			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
@@ -74,6 +102,7 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 
 	wi = 0;
 
+	// Recurrent
 	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
 		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
 			if (dx == 0 && dy == 0)
@@ -95,6 +124,7 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 	write_imagef(excitations, position, (float4)(excitation));
 }
 
+// Iterated to solve for sparse codes
 void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t statesPrev,
 	read_only image2d_t activationsPrev, read_only image2d_t spikesPrev,
 	read_only image3d_t hiddenHiddenWeightsPrev, read_only image2d_t biasesPrev,
@@ -111,6 +141,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 
 	int wi = 0;
 
+	// Inhibit
 	for (int dx = -inhibitionRadius; dx <= inhibitionRadius; dx++)
 		for (int dy = -inhibitionRadius; dy <= inhibitionRadius; dy++) {
 			if (dx == 0 && dy == 0)
@@ -131,12 +162,14 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 			wi++;
 		}
 
+	// Update activation
 	float activationPrev = read_imagef(activationsPrev, position).x;
 
 	float activation = (1.0f - dt) * activationPrev + dt * (excitation - inhibition);
 
 	float biasPrev = read_imagef(biasesPrev, position).x;
 
+	// Determine spiking
 	float spike = 0.0f;
 
 	if (activation > biasPrev) {
@@ -148,6 +181,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 
 	write_imagef(activations, position, (float4)(activation));
 
+	// Accumulate spikes
 	float spikeAccumPrev = read_imagef(spikesPrev, position).x;
 
 	float spikeAccum = spikeAccumPrev + spike;
@@ -155,6 +189,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 	write_imagef(spikes, position, (float4)(spikeAccum));
 }
 
+// Learn sparse codes
 void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, read_only image2d_t spikesRecurrentPrev,
 	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev, read_only image3d_t hiddenHiddenWeightsPrev, read_only image2d_t biasesPrev,
 	write_only image3d_t hiddenVisibleWeights, write_only image3d_t hiddenHiddenPrevWeights, write_only image3d_t hiddenHiddenWeights, write_only image2d_t biases,
@@ -170,6 +205,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 
 	int wi = 0;
 
+	// Receptive
 	for (int dx = -receptiveRadius; dx <= receptiveRadius; dx++)
 		for (int dy = -receptiveRadius; dy <= receptiveRadius; dy++) {
 			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
@@ -189,6 +225,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 
 	wi = 0;
 
+	// Recurrent
 	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
 		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
 			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
@@ -208,7 +245,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 
 	wi = 0;
 
-	// Inhibitory connections
+	// Inhibitory
 	for (int dx = -inhibitionRadius; dx <= inhibitionRadius; dx++)
 		for (int dy = -inhibitionRadius; dy <= inhibitionRadius; dy++) {
 			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
