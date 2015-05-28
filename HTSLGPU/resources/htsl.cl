@@ -19,6 +19,27 @@ misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
 
+// Sampler definitions
+constant sampler_t normalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
+CLK_ADDRESS_CLAMP |
+CLK_FILTER_NEAREST;
+
+constant sampler_t normalizedClampedToEdgeNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
+CLK_ADDRESS_CLAMP_TO_EDGE |
+CLK_FILTER_NEAREST;
+
+constant sampler_t unnormalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_FALSE |
+CLK_ADDRESS_CLAMP |
+CLK_FILTER_NEAREST;
+
+constant sampler_t defaultNormalizedSampler = CLK_NORMALIZED_COORDS_TRUE |
+CLK_ADDRESS_NONE |
+CLK_FILTER_NEAREST;
+
+constant sampler_t defaultUnnormalizedSampler = CLK_NORMALIZED_COORDS_FALSE |
+CLK_ADDRESS_NONE |
+CLK_FILTER_NEAREST;
+
 // RNG
 float randFloat(uint2* state) {
 	const float invMaxInt = 1.0f / 4294967296.0f;
@@ -90,9 +111,9 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
 
 			if (inputPosition.x >= 0 && inputPosition.x < inputDims.x && inputPosition.y >= 0 && inputPosition.y < inputDims.y) {
-				float input = read_imagef(inputs, inputPosition).x;
+				float input = read_imagef(inputs, defaultUnnormalizedSampler, inputPosition).x;
 
-				float weight = read_imagef(hiddenVisibleWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
+				float weight = read_imagef(hiddenVisibleWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
 				excitation += input * weight;
 			}
@@ -100,26 +121,25 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 			wi++;
 		}
 
-	wi = 0;
+	/*wi = 0;
 
 	// Recurrent
 	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
 		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
-			if (dx == 0 && dy == 0)
-				continue;
+			if (dx != 0 || dy != 0) {
+				int2 inputPosition = (int2)(position.x + dx, position.y + dy);
 
-			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
+				if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
+					float input = read_imagef(spikesRecurrentPrev, defaultUnnormalizedSampler, inputPosition).x * spikeNorm;
 
-			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
-				float input = read_imagef(spikesRecurrentPrev, inputPosition).x * spikeNorm;
+					float weight = read_imagef(hiddenHiddenPrevWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = read_imagef(hiddenHiddenPrevWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
-
-				excitation += input * weight;
+					excitation += input * weight;
+				}
 			}
 
 			wi++;
-		}
+		}*/
 
 	write_imagef(excitations, position, (float4)(excitation));
 }
@@ -135,7 +155,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	float excitation = read_imagef(excitations, position).x;
+	float excitation = read_imagef(excitations, defaultUnnormalizedSampler, position).x;
 
 	float inhibition = 0.0f;
 
@@ -144,30 +164,29 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 	// Inhibit
 	for (int dx = -inhibitionRadius; dx <= inhibitionRadius; dx++)
 		for (int dy = -inhibitionRadius; dy <= inhibitionRadius; dy++) {
-			if (dx == 0 && dy == 0)
-				continue;
+			if (dx != 0 || dy != 0) {
+				int2 inputPosition = (int2)(position.x + dx, position.y + dy);
 
-			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
+				if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
+					float input = read_imagef(statesPrev, defaultUnnormalizedSampler, inputPosition).x;
 
-			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
-				float input = read_imagef(statesPrev, inputPosition).x;
+					float weight = read_imagef(hiddenHiddenWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = read_imagef(hiddenHiddenWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
+					float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
 
-				//float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
-
-				inhibition += weight * input;
+					inhibition += falloff * weight * input;
+				}
 			}
 
 			wi++;
 		}
 
 	// Update activation
-	float activationPrev = read_imagef(activationsPrev, position).x;
+	float activationPrev = read_imagef(activationsPrev, defaultUnnormalizedSampler, position).x;
 
 	float activation = (1.0f - dt) * activationPrev + dt * (excitation - inhibition);
 
-	float biasPrev = read_imagef(biasesPrev, position).x;
+	float biasPrev = read_imagef(biasesPrev, defaultUnnormalizedSampler, position).x;
 
 	// Determine spiking
 	float spike = 0.0f;
@@ -182,7 +201,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 	write_imagef(activations, position, (float4)(activation));
 
 	// Accumulate spikes
-	float spikeAccumPrev = read_imagef(spikesPrev, position).x;
+	float spikeAccumPrev = read_imagef(spikesPrev, defaultUnnormalizedSampler, position).x;
 
 	float spikeAccum = spikeAccumPrev + spike;
 
@@ -201,7 +220,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 
 	int2 inputCenterPosition = (int2)(position.x * dimsToInputDims.x + 0.5f, position.y * dimsToInputDims.y + 0.5f);
 
-	float spike = read_imagef(spikes, position).x;
+	float spike = read_imagef(spikes, defaultUnnormalizedSampler, position).x;
 
 	int wi = 0;
 
@@ -211,9 +230,9 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
 
 			if (inputPosition.x >= 0 && inputPosition.x < inputDims.x && inputPosition.y >= 0 && inputPosition.y < inputDims.y) {
-				float weightPrev = read_imagef(hiddenVisibleWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
+				float weightPrev = read_imagef(hiddenVisibleWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float input = read_imagef(inputs, inputPosition).x;
+				float input = read_imagef(inputs, defaultUnnormalizedSampler, inputPosition).x;
 	
 				float weight = weightPrev + learningRates.x * spike * (input - spike * weightPrev);
 
@@ -231,9 +250,9 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
 
 			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
-				float weightPrev = read_imagef(hiddenHiddenPrevWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
+				float weightPrev = read_imagef(hiddenHiddenPrevWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float input = read_imagef(spikesRecurrentPrev, inputPosition).x * spikeNorm;
+				float input = read_imagef(spikesRecurrentPrev, defaultUnnormalizedSampler, inputPosition).x * spikeNorm;
 			
 				float weight = weightPrev + learningRates.x * spike * (input - spike * weightPrev);
 
@@ -251,9 +270,9 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
 
 			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {		
-				float weightPrev = read_imagef(hiddenHiddenWeightsPrev, (int4)(position.x, position.y, wi, 0)).x;
+				float weightPrev = read_imagef(hiddenHiddenWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 				
-				float input = read_imagef(spikes, inputPosition).x;
+				float input = read_imagef(spikes, defaultUnnormalizedSampler, inputPosition).x;
 
 				float weight = fmax(0.0f, weightPrev + learningRates.z * (input * spike - sparsitySquared));
 
@@ -264,7 +283,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 		}
 
 	// Bias
-	float biasPrev = read_imagef(biasesPrev, position).x;
+	float biasPrev = read_imagef(biasesPrev, defaultUnnormalizedSampler, position).x;
 
 	float bias = biasPrev + learningRates.w * (spike - sparsity);
 
