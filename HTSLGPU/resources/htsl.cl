@@ -52,68 +52,98 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
-// Random weight initialization
-void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
-	write_only image3d_t hiddenHiddenPrevWeights,
-	write_only image3d_t hiddenHiddenWeights,
-	int receptiveSize, int recurrentSize, int inhibitionSize, float ffWeight, float lWeight, uint2 seed)
+// Random weight initialization - excitatory
+void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
+	write_only image3d_t eFeedBackWeights,
+	int eFeedForwardSize, int eFeedBackSize,
+	float minInitWeight, float maxInitWeight,
+	uint2 seed)
 {
 	uint2 seedValue = seed + (uint2)(get_global_id(0), get_global_id(1));
 
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	// Receptive weights (feed forward)
-	for (int wi = 0; wi < receptiveSize; wi++) {
+	for (int wi = 0; wi < eFeedForwardSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
 
-		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight));
+		write_imagef(eFeedForwardWeights, weightPosition, (float4)(weight));
 	}
 
-	// Recurrent weights (feed forward)
-	for (int wi = 0; wi < recurrentSize; wi++) {
+	for (int wi = 0; wi < eFeedBackSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
 
-		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight));
-	}
-
-	// Inhibitory weights (lateral)
-	for (int wi = 0; wi < inhibitionSize; wi++) {
-		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
-
-		float weight = lWeight * randFloat(&seedValue);
-
-		write_imagef(hiddenHiddenWeights, weightPosition, (float4)(weight));
+		write_imagef(eFeedBackWeights, weightPosition, (float4)(weight));
 	}
 }
 
-// Calculate excitation (doesn't change between sparse code solving iterations)
-void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikesRecurrentPrev,
-	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev,
-	write_only image2d_t excitations,
-	int2 inputDims, int2 dims, float2 dimsToInputDims,
-	int receptiveRadius, int recurrentRadius, float spikeNorm)
+// Random weight initialization - inhibitory
+void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
+	write_only image3d_t iLateralWeights,
+	write_only image3d_t iFeedBackWeights,
+	int iFeedForwardSize, int iLateralSize, int iFeedBackSize,
+	float minInitWeight, float maxInitWeight,
+	uint2 seed)
+{
+	uint2 seedValue = seed + (uint2)(get_global_id(0), get_global_id(1));
+
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	for (int wi = 0; wi < iFeedForwardSize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
+
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+
+		write_imagef(iFeedForwardWeights, weightPosition, (float4)(weight));
+	}
+
+	for (int wi = 0; wi < iLateralSize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
+
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+
+		write_imagef(iLateralWeights, weightPosition, (float4)(weight));
+	}
+
+	for (int wi = 0; wi < iFeedBackSize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
+
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+
+		write_imagef(iFeedBackWeights, weightPosition, (float4)(weight));
+	}
+}
+
+void kernel rsc_eActivate(read_only image2d_t feedForwardInput,
+	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholds,
+	read_only image2d_t eActivationsPrev, read_only image2d_t eStatesPrev,
+	write_only image2d_t eActivations, write_only image2d_t eStates,
+	int2 eFeedForwardDims, int2 eDims, int2 iDims,
+	float2 eDimsToEFeedForwardDims, float2 eDimsToIDims,
+	int eFeedForwardRadius, int eFeedBackRadius,
+	float eta)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 inputCenterPosition = (int2)(position.x * dimsToInputDims.x + 0.5f, position.y * dimsToInputDims.y + 0.5f);
-
-	float excitation = 0.0f;
+	int2 feedForwardCenterPosition = (int2)(position.x * eDimsToEFeedForwardDims.x + 0.5f, position.y * eDimsToEFeedForwardDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)(position.x * eDimsToIDims.x + 0.5f, position.y * eDimsToIDims.y + 0.5f);
 
 	int wi = 0;
 
-	// Receptive
-	for (int dx = -receptiveRadius; dx <= receptiveRadius; dx++)
-		for (int dy = -receptiveRadius; dy <= receptiveRadius; dy++) {
-			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
+	float excitation = 0.0f;
 
-			if (inputPosition.x >= 0 && inputPosition.x < inputDims.x && inputPosition.y >= 0 && inputPosition.y < inputDims.y) {
-				float input = read_imagef(inputs, defaultUnnormalizedSampler, inputPosition).x;
+	// Feed forward (excitatory)
+	for (int dx = -eFeedForwardRadius; dx <= eFeedForwardRadius; dx++)
+		for (int dy = -eFeedForwardRadius; dy <= eFeedForwardRadius; dy++) {
+			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
-				float weight = read_imagef(hiddenVisibleWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eFeedForwardDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eFeedForwardDims.y) {
+				float input = read_imagef(inputs, defaultUnnormalizedSampler, feedForwardPosition).x;
+
+				float weight = read_imagef(eFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
 				excitation += input * weight;
 			}
@@ -121,27 +151,40 @@ void kernel rscExcitation(read_only image2d_t inputs, read_only image2d_t spikes
 			wi++;
 		}
 
-	/*wi = 0;
+	float inhibition = 0.0f;
 
-	// Recurrent
-	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
-		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
-			if (dx != 0 || dy != 0) {
-				int2 inputPosition = (int2)(position.x + dx, position.y + dy);
+	// Feed back (inhibitory)
+	for (int dx = -eFeedBackRadius; dx <= eFeedBackRadius; dx++)
+		for (int dy = -eFeedBackRadius; dy <= eFeedBackRadius; dy++) {
+			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
-				if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
-					float input = read_imagef(spikesRecurrentPrev, defaultUnnormalizedSampler, inputPosition).x * spikeNorm;
+			if (feedBackPosition.x >= 0 && feedBackPosition.x < iDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iDims.y) {
+				float input = read_imagef(inputs, defaultUnnormalizedSampler, feedBackPosition).x;
 
-					float weight = read_imagef(hiddenHiddenPrevWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+				float weight = read_imagef(eFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-					excitation += input * weight;
-				}
+				inhibition += input * weight;
 			}
 
 			wi++;
-		}*/
+		}
 
-	write_imagef(excitations, position, (float4)(excitation));
+	float activationPrev = read_imagef(eActivationsPrev, position).x;
+
+	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
+
+	float threshold = read_imagef(eThresholds, position).x;
+
+	float state = 0.0f;
+
+	if (activation > threshold) {
+		state = 1.0f;
+
+		activation = 0.0f;
+	}
+
+	write_imagef(eActivations, position, (float4)(activation));
+	write_imagef(eStates, position, (float4)(state));
 }
 
 // Iterated to solve for sparse codes

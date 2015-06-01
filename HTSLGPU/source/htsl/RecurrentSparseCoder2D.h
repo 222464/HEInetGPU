@@ -108,8 +108,8 @@ namespace htsl {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void feedForwardActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta);
-		void feedBackActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta);
 
 		// Learn sparse codes
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,

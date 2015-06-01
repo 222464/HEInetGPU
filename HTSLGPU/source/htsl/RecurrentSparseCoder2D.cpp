@@ -146,81 +146,17 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_iInitializeKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 }
 
-void RecurrentSparseCoder2D::update(sys::ComputeSystem &cs, const cl::Image2D &inputs, float dt, int iterations) {
-	cl_int2 inputDims = { _inputWidth, _inputHeight };
-	cl_int2 dims = { _width, _height };
-	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
+void RecurrentSparseCoder2D::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta) {
+	cl_int2 eFeedForwardDims = { _config._eFeedForwardWidth, _config._eFeedForwardHeight };
+	cl_int2 eDims = { _config._eWidth, _config._eHeight };
+	cl_int2 iDims = { _config._iWidth, _config._iHeight };
+	cl_float2 eDimsToEFeedForwardDims = { static_cast<float>(eFeedForwardDims.x + 1) / static_cast<float>(eDims.x + 1), static_cast<float>(eFeedForwardDims.y + 1) / static_cast<float>(eDims.y + 1) };
+	cl_float2 eDimsToIDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(eDims.x + 1), static_cast<float>(iDims.y + 1) / static_cast<float>(eDims.y + 1) };
 
-	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+	
+}
 
-	cl::size_t<3> zeroCoord;
-	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
-
-	cl::size_t<3> dimsCoord;
-	dimsCoord[0] = _width;
-	dimsCoord[1] = _height;
-	dimsCoord[2] = 1;
-
-	// Clear images
-	cs.getQueue().enqueueFillImage(_activationsPrev, zeroColor, zeroCoord, dimsCoord);
-	cs.getQueue().enqueueFillImage(_statesPrev, zeroColor, zeroCoord, dimsCoord);
-	cs.getQueue().enqueueFillImage(_spikesPrev, zeroColor, zeroCoord, dimsCoord);
-
-	// Used to normalize the spikes for recurrent input
-	float spikeNorm = 1.0f / iterations;
-
-	// Excite
-	{
-		int index = 0;
-
-		_kernels->_excitationKernel.setArg(index++, inputs);
-		_kernels->_excitationKernel.setArg(index++, _spikesRecurrentPrev);
-		_kernels->_excitationKernel.setArg(index++, _hiddenVisibleWeightsPrev);
-		_kernels->_excitationKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
-		_kernels->_excitationKernel.setArg(index++, _excitations);
-		_kernels->_excitationKernel.setArg(index++, inputDims);
-		_kernels->_excitationKernel.setArg(index++, dims);
-		_kernels->_excitationKernel.setArg(index++, dimsToInputDims);
-		_kernels->_excitationKernel.setArg(index++, _receptiveRadius);
-		_kernels->_excitationKernel.setArg(index++, _recurrentRadius);
-		_kernels->_excitationKernel.setArg(index++, spikeNorm);
-
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_excitationKernel, cl::NullRange, cl::NDRange(_width, _height));
-	}
-
-	// Used for falloff calculation
-	float inhibitionRadiusInv = 1.0f / _inhibitionRadius;
-
-	// Iterative solving
-	for (int i = 0; i < iterations; i++) {
-		// Activate
-		{
-			int index = 0;
-
-			_kernels->_activateKernel.setArg(index++, _excitations);
-			_kernels->_activateKernel.setArg(index++, _statesPrev);
-			_kernels->_activateKernel.setArg(index++, _activationsPrev);
-			_kernels->_activateKernel.setArg(index++, _spikesPrev);
-			_kernels->_activateKernel.setArg(index++, _hiddenHiddenWeightsPrev);
-			_kernels->_activateKernel.setArg(index++, _biasesPrev);
-			_kernels->_activateKernel.setArg(index++, _activations);
-			_kernels->_activateKernel.setArg(index++, _spikes);
-			_kernels->_activateKernel.setArg(index++, _states);
-			_kernels->_activateKernel.setArg(index++, dims);
-			_kernels->_activateKernel.setArg(index++, _inhibitionRadius);
-			_kernels->_activateKernel.setArg(index++, inhibitionRadiusInv);
-			_kernels->_activateKernel.setArg(index++, dt);
-
-			cs.getQueue().enqueueNDRangeKernel(_kernels->_activateKernel, cl::NullRange, cl::NDRange(_width, _height));
-		}
-
-		// Don't swap on last iteration, since there is no subsequent one
-		if (i != iterations - 1) {
-			std::swap(_activations, _activationsPrev);
-			std::swap(_states, _statesPrev);
-			std::swap(_spikes, _spikesPrev);
-		}
-	}
+void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta) {
 }
 
 void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity, int iterations) {
