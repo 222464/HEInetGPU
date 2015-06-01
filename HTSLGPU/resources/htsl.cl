@@ -21,24 +21,24 @@ misrepresented as being the original software.
 
 // Sampler definitions
 constant sampler_t normalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
-CLK_ADDRESS_CLAMP |
-CLK_FILTER_NEAREST;
+	CLK_ADDRESS_CLAMP |
+	CLK_FILTER_NEAREST;
 
 constant sampler_t normalizedClampedToEdgeNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
-CLK_ADDRESS_CLAMP_TO_EDGE |
-CLK_FILTER_NEAREST;
+	CLK_ADDRESS_CLAMP_TO_EDGE |
+	CLK_FILTER_NEAREST;
 
 constant sampler_t unnormalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_FALSE |
-CLK_ADDRESS_CLAMP |
-CLK_FILTER_NEAREST;
+	CLK_ADDRESS_CLAMP |
+	CLK_FILTER_NEAREST;
 
 constant sampler_t defaultNormalizedSampler = CLK_NORMALIZED_COORDS_TRUE |
-CLK_ADDRESS_NONE |
-CLK_FILTER_NEAREST;
+	CLK_ADDRESS_NONE |
+	CLK_FILTER_NEAREST;
 
 constant sampler_t defaultUnnormalizedSampler = CLK_NORMALIZED_COORDS_FALSE |
-CLK_ADDRESS_NONE |
-CLK_FILTER_NEAREST;
+	CLK_ADDRESS_NONE |
+	CLK_FILTER_NEAREST;
 
 // RNG
 float randFloat(uint2* state) {
@@ -58,7 +58,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	write_only image3d_t hiddenHiddenWeights,
 	int receptiveSize, int recurrentSize, int inhibitionSize, float ffWeight, float lWeight, uint2 seed)
 {
-	uint2 seedValue = seed + (uint2)(get_global_id(0) * 29 + 12, get_global_id(1) * 16 + 23) * 36;
+	uint2 seedValue = seed + (uint2)(get_global_id(0), get_global_id(1));
 
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -66,7 +66,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < receptiveSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = ffWeight * randFloat(&seedValue);
+		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
 
 		write_imagef(hiddenVisibleWeights, weightPosition, (float4)(weight));
 	}
@@ -75,7 +75,7 @@ void kernel rscInitialize(write_only image3d_t hiddenVisibleWeights,
 	for (int wi = 0; wi < recurrentSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = ffWeight * randFloat(&seedValue);
+		float weight = ffWeight * (randFloat(&seedValue) * 2.0f - 1.0f);
 
 		write_imagef(hiddenHiddenPrevWeights, weightPosition, (float4)(weight));
 	}
@@ -172,7 +172,7 @@ void kernel rscActivate(read_only image2d_t excitations, read_only image2d_t sta
 
 					float weight = read_imagef(hiddenHiddenWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-					float falloff = fmax(0.0f, 1.0f - (abs(dx) + abs(dy)) * inhibitionRadiusInv);
+					float falloff = fmax(0.0f, 1.0f - sqrt((float)(dx * dx + dy * dy)) * inhibitionRadiusInv);
 
 					inhibition += falloff * weight * input;
 				}
@@ -213,7 +213,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev, read_only image3d_t hiddenHiddenWeightsPrev, read_only image2d_t biasesPrev,
 	write_only image3d_t hiddenVisibleWeights, write_only image3d_t hiddenHiddenPrevWeights, write_only image3d_t hiddenHiddenWeights, write_only image2d_t biases,
 	int2 inputDims, int2 dims, float2 dimsToInputDims,
-	int receptiveRadius, int recurrentRadius, int inhibitionRadius, float spikeNorm,
+	int receptiveRadius, int recurrentRadius, int inhibitionRadius, float inhibitionRadiusInv, float spikeNorm,
 	float4 learningRates, float sparsity, float sparsitySquared)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
@@ -254,7 +254,7 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 
 				float input = read_imagef(spikesRecurrentPrev, defaultUnnormalizedSampler, inputPosition).x * spikeNorm;
 			
-				float weight = weightPrev + learningRates.x * spike * (input - spike * weightPrev);
+				float weight = weightPrev + learningRates.y * spike * (input - spike * weightPrev);
 
 				write_imagef(hiddenHiddenPrevWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -274,7 +274,9 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 				
 				float input = read_imagef(spikes, defaultUnnormalizedSampler, inputPosition).x;
 
-				float weight = fmax(0.0f, weightPrev + learningRates.z * (input * spike - sparsitySquared));
+				float falloff = fmax(0.0f, 1.0f - sqrt((float)(dx * dx + dy * dy)) * inhibitionRadiusInv);
+
+				float weight = fmax(0.0f, weightPrev + learningRates.z * (falloff * input * spike - sparsitySquared));
 
 				write_imagef(hiddenHiddenWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}

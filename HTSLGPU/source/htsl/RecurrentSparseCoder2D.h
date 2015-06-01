@@ -31,86 +31,92 @@ namespace htsl {
 	public:
 		// Kernels this system uses
 		struct Kernels {
-			cl::Kernel _initializeKernel;
-			cl::Kernel _excitationKernel;
-			cl::Kernel _activateKernel;
-			cl::Kernel _learnKernel;
+			cl::Kernel _eInitializeKernel;
+			cl::Kernel _iInitializeKernel;
+
+			cl::Kernel _eActivationKernel;
+			cl::Kernel _iActivationKernel;
+
+			cl::Kernel _eLearnKernel;
+			cl::Kernel _iLearnKernel;
 
 			// Load kernels from program
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
 
+		struct NeuronLayer {
+			cl::Image2D _activations;
+			cl::Image2D _activationsPrev;
+
+			cl::Image2D _states;
+			cl::Image2D _statesPrev;
+
+			cl::Image2D _thresholds;
+			cl::Image2D _thresholdsPrev;
+		};
+
+		struct Weights2D {
+			cl::Image3D _weights;
+			cl::Image3D _weightsPrev;
+		};
+
+		struct Configuration {
+			int _eFeedForwardWidth, _eFeedForwardHeight;
+			int _eWidth, _eHeight;
+			int _iWidth, _iHeight;
+			int _iFeedBackWidth, _iFeedBackHeight;
+			int _eFeedForwardRadius;
+			int _eFeedBackRadius;
+			int _iFeedForwardRadius;
+			int _iLateralRadius;
+			int _iFeedBackRadius;
+
+			Configuration()
+				: _eFeedForwardWidth(8), _eFeedForwardHeight(8),
+				_eWidth(16), _eHeight(16),
+				_iWidth(8), _iHeight(8),
+				_iFeedBackWidth(8), _iFeedBackHeight(8),
+				_eFeedForwardRadius(6),
+				_eFeedBackRadius(6),
+				_iFeedForwardRadius(6),
+				_iLateralRadius(6),
+				_iFeedBackRadius(6)
+			{}
+		};
+
 	private:
 		std::shared_ptr<Kernels> _kernels;
 
-		int _inputWidth, _inputHeight;
-		int _width, _height;
-		int _receptiveRadius, _recurrentRadius, _inhibitionRadius;
+		Configuration _config;
 
 	public:
-		// Images
-		cl::Image2D _excitations;
+		// Image sets
+		NeuronLayer _eLayer;
+		NeuronLayer _iLayer;
 
-		cl::Image2D _activations;
-		cl::Image2D _activationsPrev;
-
-		cl::Image2D _spikes;
-		cl::Image2D _spikesPrev;
-		cl::Image2D _spikesRecurrentPrev;
-
-		cl::Image2D _states;
-		cl::Image2D _statesPrev;
-
-		cl::Image3D _hiddenVisibleWeights;
-		cl::Image3D _hiddenVisibleWeightsPrev;
-		cl::Image3D _hiddenHiddenPrevWeights;
-		cl::Image3D _hiddenHiddenPrevWeightsPrev;
-		cl::Image3D _hiddenHiddenWeights;
-		cl::Image3D _hiddenHiddenWeightsPrev;
-		cl::Image2D _biases;
-		cl::Image2D _biasesPrev;
+		Weights2D _eFeedForwardWeights;
+		Weights2D _eFeedBackWeights;
+		Weights2D _iFeedForwardWeights;
+		Weights2D _iLateralWeights;
+		Weights2D _iFeedBackWeights;
 
 		// Create with random weights
-		void createRandom(int inputWidth, int inputHeight, int width, int height,
-			int receptiveRadius, int recurrentRadius, int inhibitionRadius, float ffWeight, float lWeight, float initBias,
+		void createRandom(const Configuration &config,
+			float minInitEWeight, float maxInitEWeight,
+			float minInitIWeight, float maxInitIWeight,
+			float initEThreshold, float initIThreshold,
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputs, float dt, int iterations = 50);
+		void feedForwardActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta);
+		void feedBackActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta);
 
 		// Learn sparse codes
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity, int iterations = 50);
+		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
+			float alpha, float beta, float gamma, float delta, float sparsity);
 		
-		// Swap recurrent input buffers
+		// End of simulation step (buffer swaps)
 		void stepEnd();
-
-		int getInputWidth() const {
-			return _inputWidth;
-		}
-
-		int getInputHeight() const {
-			return _inputHeight;
-		}
-
-		int getWidth() const {
-			return _width;
-		}
-
-		int getHeight() const {
-			return _height;
-		}
-
-		int getReceptiveRadius() const {
-			return _receptiveRadius;
-		}
-
-		int getRecurrentRadius() const {
-			return _recurrentRadius;
-		}
-
-		int getInhibitionRadius() const {
-			return _inhibitionRadius;
-		}
 
 		const std::shared_ptr<Kernels> &getKernels() const {
 			return _kernels;

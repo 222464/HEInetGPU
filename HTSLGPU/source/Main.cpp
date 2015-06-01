@@ -50,12 +50,12 @@ int main() {
 	htsl::RecurrentSparseCoder2D rsc2d;
 
 	sf::Image testImage;
-	testImage.loadFromFile("testImage.png");
+	testImage.loadFromFile("testImageWhitened.png");
 
 	int windowWidth = 32;
 	int windowHeight = 32;
 
-	rsc2d.createRandom(windowWidth, windowHeight, 32, 32, 6, 4, 4, 0.01f, 0.0f, 0.5f, cs, rsc2dKernels, generator);
+	rsc2d.createRandom(windowWidth, windowHeight, 16, 16, 12, 4, 12, 0.1f, 0.0f, 0.5f, cs, rsc2dKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -104,6 +104,28 @@ int main() {
 				imageData[wx + wy * windowWidth] = (color.r * 0.333f + color.g * 0.333f + color.b * 0.333f) / 255.0f;
 			}
 
+		float mean = 0.0f;
+
+		for (int i = 0; i < imageData.size(); i++)
+			mean += imageData[i];
+
+		mean /= imageData.size();
+
+		float dev2 = 0.0f;
+
+		for (int i = 0; i < imageData.size(); i++) {
+			imageData[i] -= mean;
+
+			dev2 += std::pow(imageData[i], 2);
+		}
+
+		dev2 /= imageData.size();
+
+		float scale = 1.0f / std::sqrt(dev2);
+
+		for (int i = 0; i < imageData.size(); i++)
+			imageData[i] *= scale;
+
 		cl::size_t<3> zeroCoord;
 		zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
 
@@ -115,7 +137,7 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
 		rsc2d.update(cs, inputImage, 0.1f);
-		rsc2d.learn(cs, inputImage, 0.005f, 0.005f, 1.0f, 0.1f, 0.05f);
+		rsc2d.learn(cs, inputImage, 0.001f, 0.001f, 0.1f, 0.01f, 0.01f);
 		rsc2d.stepEnd();
 
 		rfs.render(rsc2d, cs);
@@ -126,6 +148,7 @@ int main() {
 
 		sf::Sprite rfsSprite;
 		rfsSprite.setTexture(rfs.getTexture());
+		rfsSprite.setScale(1.0f, 1.0f);
 
 		window.draw(rfsSprite);
 
