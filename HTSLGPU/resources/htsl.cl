@@ -283,8 +283,8 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 	write_imagef(iStates, position, (float4)(state, (1.0f - homeoDecay) * statePrev.y + homeoDecay * state, 0.0f, 0.0f));
 }
 
-// Learn sparse codes
-void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev, read_only image2d_t iStates,
+// Learn - excitatory
+void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev, read_only image2d_t eStates,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	write_only image3d_t eFeedForwardWeights, write_only image3d_t eFeedBackWeights, write_only image2d_t eThresholds,
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
@@ -294,7 +294,7 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	float2 state = read_imagef(iStates, defaultUnnormalizedSampler, position).xy;
+	float2 state = read_imagef(eStates, defaultUnnormalizedSampler, position).xy;
 
 	int2 feedForwardCenterPosition = (int2)(position.x * eDimsToEFeedForwardDims.x + 0.5f, position.y * eDimsToEFeedForwardDims.y + 0.5f);
 	int2 feedBackCenterPosition = (int2)(position.x * eDimsToIDims.x + 0.5f, position.y * eDimsToIDims.y + 0.5f);
@@ -344,4 +344,87 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 	float threshold = thresholdPrev + gamma * (state.x - sparsity);
 
 	write_imagef(eThresholds, position, (float4)(threshold));
+}
+
+// Learn - inhibitory
+void kernel rsc_eLearn(read_only image2d_t eStates, read_only image2d_t iStatesPrev, read_only image2d_t feedBackInputs, read_only image2d_t iStates,
+	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
+	write_only image3d_t iFeedForwardWeights, write_only image3d_t iLateralWeights, write_only image2d_t iThresholds,
+	int2 eDims, int2 iDims, int2 iFeedBackDims,
+	float2 iDimsToEDims, float2 iDimsToFeedBackDims,
+	int iFeedForwardRadius, int iLateralRadius, int iFeedBackRadius,
+	float alpha, float beta, float gamma, float sparsity)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	int2 feedForwardCenterPosition = (int2)(position.x * iDimsToEDims.x + 0.5f, position.y * iDimsToEDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)(position.x * iDimsToFeedBackDims.x + 0.5f, position.y * iDimsToFeedBackDims.y + 0.5f);
+
+	float2 state = read_imagef(iStates, defaultUnnormalizedSampler, position).xy;
+
+	int wi = 0;
+
+	// Feed forward (excitatory)
+	for (int dx = -iFeedForwardRadius; dx <= iFeedForwardRadius; dx++)
+		for (int dy = -iFeedForwardRadius; dy <= iFeedForwardRadius; dy++) {
+			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
+
+			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eDims.y) {
+				float2 input = read_imagef(eStates, defaultUnnormalizedSampler, feedForwardPosition).xy;
+
+				float weightPrev = read_imagef(iFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				float weight = weightPrev + beta * (state.x * input.x - state.y * input.y * (1.0f + weightPrev));
+
+				write_imagef(iFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+			}
+
+			wi++;
+		}
+
+	wi = 0;
+
+	// Feed back (excitatory)
+	for (int dx = -iFeedBackRadius; dx <= iFeedBackRadius; dx++)
+		for (int dy = -iFeedBackRadius; dy <= iFeedBackRadius; dy++) {
+			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
+
+			if (feedBackPosition.x >= 0 && feedBackPosition.x < iFeedBackDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iFeedBackDims.y) {
+				float input = read_imagef(feedBackInput, defaultUnnormalizedSampler, feedBackPosition).x;
+
+				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				float weight = weightPrev + alpha * state.x * (input - weightPrev);
+
+				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+			}
+
+			wi++;
+		}
+
+	wi = 0;
+
+	// Lateral (inhibitory)
+	for (int dx = -iLateralRadius; dx <= iLateralRadius; dx++)
+		for (int dy = -iLateralRadius; dy <= iLateralRadius; dy++) {
+			int2 lateralPosition = (int2)(position.x + dx, position.y + dy);
+
+			if (lateralPosition.x >= 0 && lateralPosition.x < iDims.x && lateralPosition.y >= 0 && lateralPosition.y < iDims.y) {
+				float2 input = read_imagef(iStatesPrev, defaultUnnormalizedSampler, feedForwardPosition).xy;
+
+				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				float weight = weightPrev + beta * (state.x * input.x - state.y * input.y * (1.0f + weightPrev));
+
+				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+			}
+
+			wi++;
+		}
+
+	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
+
+	float threshold = thresholdPrev + gamma * (state.x - sparsity);
+
+	write_imagef(iThresholds, position, (float4)(threshold));
 }
