@@ -123,5 +123,9 @@ namespace htsl {
 		const std::shared_ptr<Kernels> &getKernels() const {
 			return _kernels;
 		}
+
+		const Configuration &getConfig() const {
+			return _config;
+		}
 	};
 }
