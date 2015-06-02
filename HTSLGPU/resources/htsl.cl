@@ -118,7 +118,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 }
 
 void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev,
-	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholds,
+	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	read_only image2d_t eActivationsPrev, read_only image2d_t eStatesPrev,
 	write_only image2d_t eActivations, write_only image2d_t eStates,
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
@@ -175,11 +175,11 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 
 	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
-	float threshold = read_imagef(eThresholds, position).x;
+	float thresholdPrev = read_imagef(eThresholdsPrev, position).x;
 
 	float state = 0.0f;
 
-	if (activation > threshold) {
+	if (activation > thresholdPrev) {
 		state = 1.0f;
 
 		activation = 0.0f;
@@ -190,7 +190,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 }
 
 void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedBackInput,
-	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholds,
+	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	read_only image2d_t iActivationsPrev, read_only image2d_t iStatesPrev,
 	write_only image2d_t iActivations, write_only image2d_t iStates,
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
@@ -265,11 +265,11 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 
 	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
-	float threshold = read_imagef(iThresholds, position).x;
+	float thresholdPrev = read_imagef(iThresholdsPrev, position).x;
 
 	float state = 0.0f;
 
-	if (activation > threshold) {
+	if (activation > thresholdPrev) {
 		state = 1.0f;
 
 		activation = 0.0f;
@@ -280,34 +280,36 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 }
 
 // Learn sparse codes
-void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, read_only image2d_t spikesRecurrentPrev,
-	read_only image3d_t hiddenVisibleWeightsPrev, read_only image3d_t hiddenHiddenPrevWeightsPrev, read_only image3d_t hiddenHiddenWeightsPrev, read_only image2d_t biasesPrev,
-	write_only image3d_t hiddenVisibleWeights, write_only image3d_t hiddenHiddenPrevWeights, write_only image3d_t hiddenHiddenWeights, write_only image2d_t biases,
-	int2 inputDims, int2 dims, float2 dimsToInputDims,
-	int receptiveRadius, int recurrentRadius, int inhibitionRadius, float inhibitionRadiusInv, float spikeNorm,
-	float4 learningRates, float sparsity, float sparsitySquared)
+void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev, read_only image2d_t iStates,
+	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
+	write_only image3d_t eFeedForwardWeights, write_only image3d_t eFeedBackWeights, write_only image2d_t eThresholds,
+	int2 eFeedForwardDims, int2 eDims, int2 iDims,
+	float2 eDimsToEFeedForwardDims, float2 eDimsToIDims,
+	int eFeedForwardRadius, int eFeedBackRadius,
+	float alpha, float beta, float sparsity)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 inputCenterPosition = (int2)(position.x * dimsToInputDims.x + 0.5f, position.y * dimsToInputDims.y + 0.5f);
+	float2 state = read_imagef(iStates, defaultUnnormalizedSampler, position).xy;
 
-	float spike = read_imagef(spikes, defaultUnnormalizedSampler, position).x;
+	int2 feedForwardCenterPosition = (int2)(position.x * eDimsToEFeedForwardDims.x + 0.5f, position.y * eDimsToEFeedForwardDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)(position.x * eDimsToIDims.x + 0.5f, position.y * eDimsToIDims.y + 0.5f);
 
 	int wi = 0;
 
-	// Receptive
-	for (int dx = -receptiveRadius; dx <= receptiveRadius; dx++)
-		for (int dy = -receptiveRadius; dy <= receptiveRadius; dy++) {
-			int2 inputPosition = (int2)(inputCenterPosition.x + dx, inputCenterPosition.y + dy);
+	// Feed forward (excitatory)
+	for (int dx = -eFeedForwardRadius; dx <= eFeedForwardRadius; dx++)
+		for (int dy = -eFeedForwardRadius; dy <= eFeedForwardRadius; dy++) {
+			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
-			if (inputPosition.x >= 0 && inputPosition.x < inputDims.x && inputPosition.y >= 0 && inputPosition.y < inputDims.y) {
-				float weightPrev = read_imagef(hiddenVisibleWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eFeedForwardDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eFeedForwardDims.y) {
+				float input = read_imagef(feedForwardInput, defaultUnnormalizedSampler, feedForwardPosition).x;
 
-				float input = read_imagef(inputs, defaultUnnormalizedSampler, inputPosition).x;
-	
-				float weight = weightPrev + learningRates.x * spike * (input - spike * weightPrev);
+				float weightPrev = read_imagef(eFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				write_imagef(hiddenVisibleWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+				float weight = weightPrev + alpha * state.x * (input - weightPrev);
+
+				write_imagef(eFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
 
 			wi++;
@@ -315,50 +317,23 @@ void kernel rscLearn(read_only image2d_t inputs, read_only image2d_t spikes, rea
 
 	wi = 0;
 
-	// Recurrent
-	for (int dx = -recurrentRadius; dx <= recurrentRadius; dx++)
-		for (int dy = -recurrentRadius; dy <= recurrentRadius; dy++) {
-			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
+	// Feed back (inhibitory)
+	for (int dx = -eFeedBackRadius; dx <= eFeedBackRadius; dx++)
+		for (int dy = -eFeedBackRadius; dy <= eFeedBackRadius; dy++) {
+			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
-			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {
-				float weightPrev = read_imagef(hiddenHiddenPrevWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+			if (feedBackPosition.x >= 0 && feedBackPosition.x < iDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iDims.y) {
+				float2 input = read_imagef(iStatesPrev, defaultUnnormalizedSampler, feedBackPosition).xy;
 
-				float input = read_imagef(spikesRecurrentPrev, defaultUnnormalizedSampler, inputPosition).x * spikeNorm;
-			
-				float weight = weightPrev + learningRates.y * spike * (input - spike * weightPrev);
+				float weightPrev = read_imagef(eFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				write_imagef(hiddenHiddenPrevWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+				float weight = weightPrev + beta * (state.x * input.x - state.y * input.y * (1.0f + weightPrev));
+
+				write_imagef(eFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
 
 			wi++;
 		}
 
-	wi = 0;
-
-	// Inhibitory
-	for (int dx = -inhibitionRadius; dx <= inhibitionRadius; dx++)
-		for (int dy = -inhibitionRadius; dy <= inhibitionRadius; dy++) {
-			int2 inputPosition = (int2)(position.x + dx, position.y + dy);
-
-			if (inputPosition.x >= 0 && inputPosition.x < dims.x && inputPosition.y >= 0 && inputPosition.y < dims.y) {		
-				float weightPrev = read_imagef(hiddenHiddenWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
-				
-				float input = read_imagef(spikes, defaultUnnormalizedSampler, inputPosition).x;
-
-				float falloff = fmax(0.0f, 1.0f - sqrt((float)(dx * dx + dy * dy)) * inhibitionRadiusInv);
-
-				float weight = fmax(0.0f, weightPrev + learningRates.z * (falloff * input * spike - sparsitySquared));
-
-				write_imagef(hiddenHiddenWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
-			}
-
-			wi++;
-		}
-
-	// Bias
-	float biasPrev = read_imagef(biasesPrev, defaultUnnormalizedSampler, position).x;
-
-	float bias = biasPrev + learningRates.w * (spike - sparsity);
-
-	write_imagef(biases, position, (float4)(bias));
+	float thresholdPrev = read_imagef(eThresholdsPrev, position).x;
 }
