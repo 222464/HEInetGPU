@@ -124,7 +124,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
 	float2 eDimsToEFeedForwardDims, float2 eDimsToIDims,
 	int eFeedForwardRadius, int eFeedBackRadius,
-	float eta)
+	float eta, float homeoDecay)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -171,11 +171,13 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 			wi++;
 		}
 
-	float activationPrev = read_imagef(eActivationsPrev, position).x;
+	float activationPrev = read_imagef(eActivationsPrev, defaultUnnormalizedSampler, position).x;
 
 	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
-	float thresholdPrev = read_imagef(eThresholdsPrev, position).x;
+	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
+
+	float2 statePrev = read_imagef(eStatesPrev, defaultUnnormalizedSampler, position).xy;
 
 	float state = 0.0f;
 
@@ -186,7 +188,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 	}
 
 	write_imagef(eActivations, position, (float4)(activation));
-	write_imagef(eStates, position, (float4)(state));
+	write_imagef(eStates, position, (float4)(state, (1.0f - homeoDecay) * statePrev.y + homeoDecay * state, 0.0f, 0.0f));
 }
 
 void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedBackInput,
@@ -196,7 +198,7 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
 	float2 iDimsToEDims, float2 iDimsToFeedBackDims,
 	int iFeedForwardRadius, int iLateralRadius, int iFeedBackRadius,
-	float eta)
+	float eta, float homeoDecay)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -261,11 +263,13 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 			wi++;
 		}
 
-	float activationPrev = read_imagef(iActivationsPrev, position).x;
+	float activationPrev = read_imagef(iActivationsPrev, defaultUnnormalizedSampler, position).x;
 
 	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
-	float thresholdPrev = read_imagef(iThresholdsPrev, position).x;
+	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
+
+	float2 statePrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, position).x;
 
 	float state = 0.0f;
 
@@ -276,7 +280,7 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 	}
 
 	write_imagef(iActivations, position, (float4)(activation));
-	write_imagef(iStates, position, (float4)(state));
+	write_imagef(iStates, position, (float4)(state, (1.0f - homeoDecay) * statePrev.y + homeoDecay * state, 0.0f, 0.0f));
 }
 
 // Learn sparse codes
@@ -286,7 +290,7 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
 	float2 eDimsToEFeedForwardDims, float2 eDimsToIDims,
 	int eFeedForwardRadius, int eFeedBackRadius,
-	float alpha, float beta, float sparsity)
+	float alpha, float beta, float gamma, float sparsity)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -335,5 +339,9 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 			wi++;
 		}
 
-	float thresholdPrev = read_imagef(eThresholdsPrev, position).x;
+	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
+
+	float threshold = thresholdPrev + gamma * (state.x - sparsity);
+
+	write_imagef(eThresholds, position, (float4)(threshold));
 }
