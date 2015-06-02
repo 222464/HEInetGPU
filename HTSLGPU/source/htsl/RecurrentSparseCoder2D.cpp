@@ -146,65 +146,153 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_iInitializeKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 }
 
-void RecurrentSparseCoder2D::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta) {
+void RecurrentSparseCoder2D::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay) {
 	cl_int2 eFeedForwardDims = { _config._eFeedForwardWidth, _config._eFeedForwardHeight };
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
 	cl_int2 iDims = { _config._iWidth, _config._iHeight };
 	cl_float2 eDimsToEFeedForwardDims = { static_cast<float>(eFeedForwardDims.x + 1) / static_cast<float>(eDims.x + 1), static_cast<float>(eFeedForwardDims.y + 1) / static_cast<float>(eDims.y + 1) };
 	cl_float2 eDimsToIDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(eDims.x + 1), static_cast<float>(iDims.y + 1) / static_cast<float>(eDims.y + 1) };
 
-	
+	int index = 0;
+
+	_kernels->_eActivationKernel.setArg(index++, feedForwardInput);
+	_kernels->_eActivationKernel.setArg(index++, _iLayer._statesPrev);
+	_kernels->_eActivationKernel.setArg(index++, _eFeedForwardWeights._weightsPrev);
+	_kernels->_eActivationKernel.setArg(index++, _eFeedBackWeights._weightsPrev);
+	_kernels->_eActivationKernel.setArg(index++, _eLayer._thresholdsPrev);
+	_kernels->_eActivationKernel.setArg(index++, _eLayer._activationsPrev);
+	_kernels->_eActivationKernel.setArg(index++, _eLayer._statesPrev);
+	_kernels->_eActivationKernel.setArg(index++, _eLayer._activations);
+	_kernels->_eActivationKernel.setArg(index++, _eLayer._states);
+
+	_kernels->_eActivationKernel.setArg(index++, eFeedForwardDims);
+	_kernels->_eActivationKernel.setArg(index++, eDims);
+	_kernels->_eActivationKernel.setArg(index++, iDims);
+	_kernels->_eActivationKernel.setArg(index++, eDimsToEFeedForwardDims);
+	_kernels->_eActivationKernel.setArg(index++, eDimsToIDims);
+	_kernels->_eActivationKernel.setArg(index++, _config._eFeedForwardRadius);
+	_kernels->_eActivationKernel.setArg(index++, _config._eFeedBackRadius);
+	_kernels->_eActivationKernel.setArg(index++, eta);
+	_kernels->_eActivationKernel.setArg(index++, homeoDecay);
+
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_eActivationKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 }
 
-void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta) {
+void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float homeoDecay) {
+	cl_int2 eDims = { _config._eWidth, _config._eHeight };
+	cl_int2 iDims = { _config._iWidth, _config._iHeight };
+	cl_int2 iFeedBackDims = { _config._iFeedBackWidth, _config._iFeedBackHeight };
+	cl_float2 iDimsToEDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(eDims.y + 1) / static_cast<float>(iDims.y + 1) };
+	cl_float2 iDimsToFeedBackDims = { static_cast<float>(iFeedBackDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(iFeedBackDims.y + 1) / static_cast<float>(iDims.y + 1) };
+
+	int index = 0;
+
+	_kernels->_iActivationKernel.setArg(index++, _eLayer._states);
+	_kernels->_iActivationKernel.setArg(index++, feedBackInput);
+	_kernels->_iActivationKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
+	_kernels->_iActivationKernel.setArg(index++, _iLateralWeights._weightsPrev);
+	_kernels->_iActivationKernel.setArg(index++, _iFeedBackWeights._weightsPrev);
+	_kernels->_iActivationKernel.setArg(index++, _iLayer._thresholdsPrev);
+	_kernels->_iActivationKernel.setArg(index++, _iLayer._activationsPrev);
+	_kernels->_iActivationKernel.setArg(index++, _iLayer._statesPrev);
+	_kernels->_iActivationKernel.setArg(index++, _iLayer._activations);
+	_kernels->_iActivationKernel.setArg(index++, _iLayer._states);
+
+	_kernels->_iActivationKernel.setArg(index++, eDims);
+	_kernels->_iActivationKernel.setArg(index++, iDims);
+	_kernels->_iActivationKernel.setArg(index++, iFeedBackDims);
+	_kernels->_iActivationKernel.setArg(index++, iDimsToEDims);
+	_kernels->_iActivationKernel.setArg(index++, iDimsToFeedBackDims);
+	_kernels->_iActivationKernel.setArg(index++, _config._iFeedForwardRadius);
+	_kernels->_iActivationKernel.setArg(index++, _config._iLateralRadius);
+	_kernels->_iActivationKernel.setArg(index++, _config._iFeedBackRadius);
+	_kernels->_iActivationKernel.setArg(index++, eta);
+	_kernels->_iActivationKernel.setArg(index++, homeoDecay);
+
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_iActivationKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 }
 
-void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &inputs, float alpha, float beta, float gamma, float delta, float sparsity, int iterations) {
-	cl_int2 inputDims = { _inputWidth, _inputHeight };
-	cl_int2 dims = { _width, _height };
-	cl_float2 dimsToInputDims = { static_cast<float>(_inputWidth + 1) / static_cast<float>(_width + 1), static_cast<float>(_inputHeight + 1) / static_cast<float>(_height + 1) };
-	cl_float4 learningRates = { alpha, beta, gamma, delta };
+void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
+	float eAlpha, float eBeta, float eDelta,
+	float iAlpha, float iBeta, float iGamma, float iDelta,
+	float sparsity)
+{
+	// Common
+	cl_int2 eDims = { _config._eWidth, _config._eHeight };
+	cl_int2 iDims = { _config._iWidth, _config._iHeight };
 
-	float spikeNorm = 1.0f / iterations;
+	// Excitatory
+	cl_int2 eFeedForwardDims = { _config._eFeedForwardWidth, _config._eFeedForwardHeight };
+	cl_float2 eDimsToEFeedForwardDims = { static_cast<float>(eFeedForwardDims.x + 1) / static_cast<float>(eDims.x + 1), static_cast<float>(eFeedForwardDims.y + 1) / static_cast<float>(eDims.y + 1) };
+	cl_float2 eDimsToIDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(eDims.x + 1), static_cast<float>(iDims.y + 1) / static_cast<float>(eDims.y + 1) };
 
-	// Used for falloff calculation
-	float inhibitionRadiusInv = 1.0f / _inhibitionRadius;
+	// Inhibitory
+	cl_int2 iFeedBackDims = { _config._iFeedBackWidth, _config._iFeedBackHeight };
+	cl_float2 iDimsToEDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(eDims.y + 1) / static_cast<float>(iDims.y + 1) };
+	cl_float2 iDimsToFeedBackDims = { static_cast<float>(iFeedBackDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(iFeedBackDims.y + 1) / static_cast<float>(iDims.y + 1) };
 
-	// Learn
+	// Excitatory
 	{
 		int index = 0;
 
-		_kernels->_learnKernel.setArg(index++, inputs);
-		_kernels->_learnKernel.setArg(index++, _spikes);
-		_kernels->_learnKernel.setArg(index++, _spikesRecurrentPrev);
-		_kernels->_learnKernel.setArg(index++, _hiddenVisibleWeightsPrev);
-		_kernels->_learnKernel.setArg(index++, _hiddenHiddenPrevWeightsPrev);
-		_kernels->_learnKernel.setArg(index++, _hiddenHiddenWeightsPrev);
-		_kernels->_learnKernel.setArg(index++, _biasesPrev);
-		_kernels->_learnKernel.setArg(index++, _hiddenVisibleWeights);
-		_kernels->_learnKernel.setArg(index++, _hiddenHiddenPrevWeights);
-		_kernels->_learnKernel.setArg(index++, _hiddenHiddenWeights);
-		_kernels->_learnKernel.setArg(index++, _biases);
-		_kernels->_learnKernel.setArg(index++, inputDims);
-		_kernels->_learnKernel.setArg(index++, dims);
-		_kernels->_learnKernel.setArg(index++, dimsToInputDims);
-		_kernels->_learnKernel.setArg(index++, _receptiveRadius);
-		_kernels->_learnKernel.setArg(index++, _recurrentRadius);
-		_kernels->_learnKernel.setArg(index++, _inhibitionRadius);
-		_kernels->_learnKernel.setArg(index++, inhibitionRadiusInv);
-		_kernels->_learnKernel.setArg(index++, spikeNorm);
-		_kernels->_learnKernel.setArg(index++, learningRates);
-		_kernels->_learnKernel.setArg(index++, sparsity);
-		_kernels->_learnKernel.setArg(index++, sparsity * sparsity);
+		_kernels->_eLearnKernel.setArg(index++, feedForwardInput);
+		_kernels->_eLearnKernel.setArg(index++, _iLayer._statesPrev);
+		_kernels->_eLearnKernel.setArg(index++, _eLayer._states);
+		_kernels->_eLearnKernel.setArg(index++, _eFeedForwardWeights._weightsPrev);
+		_kernels->_eLearnKernel.setArg(index++, _eFeedBackWeights._weightsPrev);
+		_kernels->_eLearnKernel.setArg(index++, _eLayer._thresholdsPrev);
+		_kernels->_eLearnKernel.setArg(index++, _eFeedForwardWeights._weights);
+		_kernels->_eLearnKernel.setArg(index++, _eFeedBackWeights._weights);
+		_kernels->_eLearnKernel.setArg(index++, _eLayer._thresholds);
 
-		cs.getQueue().enqueueNDRangeKernel(_kernels->_learnKernel, cl::NullRange, cl::NDRange(_width, _height));
+		_kernels->_eLearnKernel.setArg(index++, eFeedForwardDims);
+		_kernels->_eLearnKernel.setArg(index++, eDims);
+		_kernels->_eLearnKernel.setArg(index++, iDims);
+		_kernels->_eLearnKernel.setArg(index++, eDimsToEFeedForwardDims);
+		_kernels->_eLearnKernel.setArg(index++, eDimsToIDims);
+		_kernels->_eLearnKernel.setArg(index++, _config._eFeedForwardRadius);
+		_kernels->_eLearnKernel.setArg(index++, _config._eFeedBackRadius);
+
+		_kernels->_eLearnKernel.setArg(index++, eAlpha);
+		_kernels->_eLearnKernel.setArg(index++, eBeta);
+		_kernels->_eLearnKernel.setArg(index++, eDelta);
+
+		cs.getQueue().enqueueNDRangeKernel(_kernels->_eLearnKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 	}
 
-	// Swap buffers
-	std::swap(_hiddenVisibleWeights, _hiddenVisibleWeightsPrev);
-	std::swap(_hiddenHiddenPrevWeights, _hiddenHiddenPrevWeightsPrev);
-	std::swap(_hiddenHiddenWeights, _hiddenHiddenWeightsPrev);
-	std::swap(_biases, _biasesPrev);
+	// Inhibitory
+	{
+		int index = 0;
+
+		_kernels->_iLearnKernel.setArg(index++, _eLayer._states);
+		_kernels->_iLearnKernel.setArg(index++, _iLayer._statesPrev);
+		_kernels->_iLearnKernel.setArg(index++, feedBackInput);
+		_kernels->_iLearnKernel.setArg(index++, _iLayer._states);
+		_kernels->_iLearnKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
+		_kernels->_iLearnKernel.setArg(index++, _iLateralWeights._weightsPrev);
+		_kernels->_iLearnKernel.setArg(index++, _iFeedBackWeights._weightsPrev);
+		_kernels->_iLearnKernel.setArg(index++, _iLayer._thresholdsPrev);
+		_kernels->_iLearnKernel.setArg(index++, _iFeedForwardWeights._weights);
+		_kernels->_iLearnKernel.setArg(index++, _iLateralWeights._weights);
+		_kernels->_iLearnKernel.setArg(index++, _iFeedBackWeights._weights);
+		_kernels->_iLearnKernel.setArg(index++, _iLayer._thresholds);
+
+		_kernels->_iLearnKernel.setArg(index++, eDims);
+		_kernels->_iLearnKernel.setArg(index++, iDims);
+		_kernels->_iLearnKernel.setArg(index++, iFeedBackDims);
+		_kernels->_iLearnKernel.setArg(index++, iDimsToEDims);
+		_kernels->_iLearnKernel.setArg(index++, iDimsToFeedBackDims);
+		_kernels->_iLearnKernel.setArg(index++, _config._iFeedForwardRadius);
+		_kernels->_iLearnKernel.setArg(index++, _config._iLateralRadius);
+		_kernels->_iLearnKernel.setArg(index++, _config._iFeedBackRadius);
+
+		_kernels->_iLearnKernel.setArg(index++, iAlpha);
+		_kernels->_iLearnKernel.setArg(index++, iBeta);
+		_kernels->_iLearnKernel.setArg(index++, iGamma);
+		_kernels->_iLearnKernel.setArg(index++, iDelta);
+
+		cs.getQueue().enqueueNDRangeKernel(_kernels->_iLearnKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
+	}
 }
 
 void RecurrentSparseCoder2D::stepEnd() {

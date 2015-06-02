@@ -108,12 +108,14 @@ namespace htsl {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta);
-		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float homeoDecay);
 
 		// Learn sparse codes
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
-			float alpha, float beta, float gamma, float delta, float sparsity);
+			float eAlpha, float eBeta, float eDelta,
+			float iAlpha, float iBeta, float iGamma, float iDelta,
+			float sparsity);
 		
 		// End of simulation step (buffer swaps)
 		void stepEnd();
