@@ -21,9 +21,7 @@ misrepresented as being the original software.
 
 #include <system/ComputeSystem.h>
 
-#include <htsl/RecurrentSparseCoder2D.h>
-#include <vis/ReceptiveFields.h>
-#include <vis/PrettySDR.h>
+#include <htsl/HTSL.h>
 
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
@@ -47,7 +45,7 @@ int main() {
 
 	rsc2dKernels->loadFromProgram(program);
 
-	htsl::RecurrentSparseCoder2D rsc2d;
+	htsl::HTSL ht;
 
 	sf::Image testImage;
 	testImage.loadFromFile("testImageWhitened.png");
@@ -55,16 +53,34 @@ int main() {
 	int windowWidth = 32;
 	int windowHeight = 32;
 
-	rsc2d.createRandom(windowWidth, windowHeight, 16, 16, 12, 4, 12, 0.1f, 0.0f, 0.5f, cs, rsc2dKernels, generator);
+	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
+
+	std::vector<cl_int2> eSizes(3);
+	std::vector<cl_int2> iSizes(3);
+
+	eSizes[0].x = 16;
+	eSizes[0].y = 16;
+	eSizes[1].x = 12;
+	eSizes[1].y = 12;
+	eSizes[2].x = 8;
+	eSizes[2].y = 8;
+
+	iSizes[0].x = 8;
+	iSizes[0].y = 8;
+	iSizes[1].x = 6;
+	iSizes[1].y = 6;
+	iSizes[2].x = 4;
+	iSizes[2].y = 4;
+
+	cl_int2 inputSize = { windowWidth, windowHeight };
+
+	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
+
+	ht.createRandom(configs, -0.01f, 0.01f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
-	vis::ReceptiveFields rfs;
-	rfs.create(rsc2d);
-
-	vis::PrettySDR psdr;
-
-	psdr.create(rsc2d.getWidth(), rsc2d.getHeight());
+	cl::Image2D zeroImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), 1, 1);
 
 	std::uniform_int_distribution<int> distSampleX(0, testImage.getSize().x - windowWidth - 1);
 	std::uniform_int_distribution<int> distSampleY(0, testImage.getSize().y - windowHeight - 1);
@@ -136,23 +152,11 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
-		rsc2d.update(cs, inputImage, 0.1f);
-		rsc2d.learn(cs, inputImage, 0.001f, 0.001f, 0.1f, 0.01f, 0.01f);
-		rsc2d.stepEnd();
-
-		rfs.render(rsc2d, cs);
-
-		psdr.loadFromImage(cs, rsc2d);
+		ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
+		ht.learn(cs, inputImage, zeroImage, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.05f);
+		ht.stepEnd();
 
 		window.clear();
-
-		sf::Sprite rfsSprite;
-		rfsSprite.setTexture(rfs.getTexture());
-		rfsSprite.setScale(1.0f, 1.0f);
-
-		window.draw(rfsSprite);
-
-		psdr.render(window, sf::Vector2f(window.getSize().x - rsc2d.getWidth() * psdr._nodeSpaceSize, 0.0f));
 
 		window.display();
 	}

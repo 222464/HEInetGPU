@@ -27,7 +27,7 @@ misrepresented as being the original software.
 #include <random>
 
 namespace htsl {
-	class RecurrentSparseCoder2D : sys::Uncopyable {
+	class RecurrentSparseCoder2D {
 	public:
 		// Kernels this system uses
 		struct Kernels {
