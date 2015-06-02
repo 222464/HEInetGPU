@@ -28,8 +28,8 @@ void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &progr
 	_eInitializeKernel = cl::Kernel(program.getProgram(), "rsc_eInitialize");
 	_iInitializeKernel = cl::Kernel(program.getProgram(), "rsc_iInitialize");
 
-	_eActivationKernel = cl::Kernel(program.getProgram(), "rsc_eActivation");
-	_iActivationKernel = cl::Kernel(program.getProgram(), "rsc_iActivation");
+	_eActivationKernel = cl::Kernel(program.getProgram(), "rsc_eActivate");
+	_iActivationKernel = cl::Kernel(program.getProgram(), "rsc_iActivate");
 
 	_eLearnKernel = cl::Kernel(program.getProgram(), "rsc_eLearn");
 	_iLearnKernel = cl::Kernel(program.getProgram(), "rsc_iLearn");
@@ -131,6 +131,8 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	_kernels->_eInitializeKernel.setArg(index++, seedE);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_eInitializeKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
+
+	index = 0;
 
 	// Initialize weights
 	_kernels->_iInitializeKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
@@ -256,6 +258,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 		_kernels->_eLearnKernel.setArg(index++, eAlpha);
 		_kernels->_eLearnKernel.setArg(index++, eBeta);
 		_kernels->_eLearnKernel.setArg(index++, eDelta);
+		_kernels->_eLearnKernel.setArg(index++, sparsity);
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_eLearnKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 	}
@@ -290,6 +293,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 		_kernels->_iLearnKernel.setArg(index++, iBeta);
 		_kernels->_iLearnKernel.setArg(index++, iGamma);
 		_kernels->_iLearnKernel.setArg(index++, iDelta);
+		_kernels->_iLearnKernel.setArg(index++, sparsity);
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_iLearnKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 	}
