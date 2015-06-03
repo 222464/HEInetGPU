@@ -45,6 +45,10 @@ int main() {
 
 	rsc2dKernels->loadFromProgram(program);
 
+	std::shared_ptr<htsl::HTSL::Kernels> htslKernels = std::make_shared<htsl::HTSL::Kernels>();
+
+	htslKernels->loadFromProgram(program);
+
 	htsl::HTSL ht;
 
 	sf::Image testImage;
@@ -76,7 +80,7 @@ int main() {
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, -0.01f, 0.01f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, generator);
+	ht.createRandom(configs, 8, 8, -0.01f, 0.01f, 0.0f, 0.2f, 0.01f, 0.01f, cs, rsc2dKernels, htslKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -153,10 +157,49 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
 
 		ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-		ht.learn(cs, inputImage, zeroImage, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.05f);
+		ht.predict(cs);
+		ht.learn(cs, inputImage, zeroImage, 0.001f, 0.1f, 0.01f, 0.001f, 0.001f, 0.1f, 0.01f, 0.01f);
+		ht.learnPrediction(cs, inputImage, 0.01f);
 		ht.stepEnd();
 
 		window.clear();
+
+		std::vector<cl_float2> iSpikeData(ht.getRSCLayers()[0].getConfig()._iWidth * ht.getRSCLayers()[0].getConfig()._iHeight);
+
+		cl::size_t<3> eDims;
+		eDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
+		eDims[1] = ht.getRSCLayers()[0].getConfig()._eHeight;
+		eDims[2] = 1;
+
+		cl::size_t<3> iDims;
+		iDims[0] = ht.getRSCLayers()[0].getConfig()._iWidth;
+		iDims[1] = ht.getRSCLayers()[0].getConfig()._iHeight;
+		iDims[2] = 1;
+
+		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+
+		sf::Image img;
+		img.create(iDims[0], iDims[1]);
+
+		for (int x = 0; x < iDims[0]; x++)
+			for (int y = 0; y < iDims[1]; y++) {
+				sf::Color c;
+				c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].x;
+				c.a = 255;
+
+				img.setPixel(x, y, c);
+			}
+
+		sf::Texture tex;
+
+		tex.loadFromImage(img);
+
+		sf::Sprite s;
+		s.setTexture(tex);
+
+		s.setScale(4.0f, 4.0f);
+
+		window.draw(s);
 
 		window.display();
 	}

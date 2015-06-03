@@ -52,6 +52,10 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
+// ---------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------- RSC ---------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------------------
+
 // Random weight initialization - excitatory
 void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 	write_only image3d_t eFeedBackWeights,
@@ -427,4 +431,145 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 	float threshold = thresholdPrev + delta * (state.x - sparsity);
 
 	write_imagef(iThresholds, position, (float4)(threshold));
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------- HTSL --------------------------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------------------
+
+// Initialize prediction weights
+void kernel htsl_predictionInitialize(write_only image3d_t predictionWeightsFromE, write_only image3d_t predictionWeightsFromI,
+	int predictionFromESize, int predictionFromISize,
+	float minInitWeight, float maxInitWeight, uint2 seed)
+{
+	uint2 seedValue = seed + (uint2)(get_global_id(0), get_global_id(1));
+
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	for (int wi = 0; wi < predictionFromESize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
+
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+
+		write_imagef(predictionWeightsFromE, weightPosition, (float4)(weight));
+	}
+
+	for (int wi = 0; wi < predictionFromISize; wi++) {
+		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
+
+		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+
+		write_imagef(predictionWeightsFromI, weightPosition, (float4)(weight));
+	}
+}
+
+// Perceptron from eStates and iStates that forms predictions
+void kernel htsl_predict(read_only image2d_t eStates, read_only image2d_t iStates,
+	read_only image3d_t predictionFromEWeightsPrev, read_only image3d_t predictionFromIWeightsPrev,
+	write_only image2d_t predictions,
+	float2 eFeedForwardDimsToEDims, float2 eFeedForwardDimsToIDims,
+	int2 eDims, int2 iDims,
+	int predictionRadiusFromE, int predictionRadiusFromI)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	int2 eCenterPosition = (int2)(position.x * eFeedForwardDimsToEDims.x + 0.5f, position.y * eFeedForwardDimsToEDims.y + 0.5f);
+	int2 iCenterPosition = (int2)(position.x * eFeedForwardDimsToIDims.x + 0.5f, position.y * eFeedForwardDimsToIDims.y + 0.5f);
+
+	int wi = 0;
+
+	float sum = 0.0f;
+
+	for (int dx = -predictionRadiusFromE; dx <= predictionRadiusFromE; dx++)
+		for (int dy = -predictionRadiusFromE; dy <= predictionRadiusFromE; dy++) {
+			int2 ePosition = (int2)(eCenterPosition.x + dx, eCenterPosition.y + dy);
+
+			if (ePosition.x >= 0 && ePosition.x < eDims.x && ePosition.y >= 0 && ePosition.y < eDims.y) {
+				float input = read_imagef(eStates, defaultUnnormalizedSampler, ePosition).x;
+
+				float weight = read_imagef(predictionFromEWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				sum += weight * input;
+			}
+
+			wi++;
+		}
+
+	wi = 0;
+
+	for (int dx = -predictionRadiusFromI; dx <= predictionRadiusFromI; dx++)
+		for (int dy = -predictionRadiusFromI; dy <= predictionRadiusFromI; dy++) {
+			int2 iPosition = (int2)(iCenterPosition.x + dx, iCenterPosition.y + dy);
+
+			if (iPosition.x >= 0 && iPosition.x < iDims.x && iPosition.y >= 0 && iPosition.y < iDims.y) {
+				float input = read_imagef(iStates, defaultUnnormalizedSampler, iPosition).x;
+
+				float weight = read_imagef(predictionFromIWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				sum += weight * input;
+			}
+
+			wi++;
+		}
+
+	write_imagef(predictions, position, (float4)(sum));
+}
+
+// Learn perceptron
+void kernel htsl_predictionLearn(read_only image2d_t eStates, read_only image2d_t iStates,
+	read_only image2d_t feedForwardInput, read_only image2d_t predictions,
+	read_only image3d_t predictionFromEWeightsPrev, read_only image3d_t predictionFromIWeightsPrev,
+	write_only image3d_t predictionFromEWeights, write_only image3d_t predictionFromIWeights,
+	float2 eFeedForwardDimsToEDims, float2 eFeedForwardDimsToIDims,
+	int2 eDims, int2 iDims,
+	int predictionRadiusFromE, int predictionRadiusFromI,
+	float alpha)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	int2 eCenterPosition = (int2)(position.x * eFeedForwardDimsToEDims.x + 0.5f, position.y * eFeedForwardDimsToEDims.y + 0.5f);
+	int2 iCenterPosition = (int2)(position.x * eFeedForwardDimsToIDims.x + 0.5f, position.y * eFeedForwardDimsToIDims.y + 0.5f);
+
+	float target = read_imagef(feedForwardInput, defaultUnnormalizedSampler, position).x;
+	float prediction = read_imagef(predictions, defaultUnnormalizedSampler, position).x;
+
+	float alphaError = alpha * (target - prediction);
+
+	int wi = 0;
+
+	for (int dx = -predictionRadiusFromE; dx <= predictionRadiusFromE; dx++)
+		for (int dy = -predictionRadiusFromE; dy <= predictionRadiusFromE; dy++) {
+			int2 ePosition = (int2)(eCenterPosition.x + dx, eCenterPosition.y + dy);
+
+			if (ePosition.x >= 0 && ePosition.x < eDims.x && ePosition.y >= 0 && ePosition.y < eDims.y) {
+				float input = read_imagef(eStates, defaultUnnormalizedSampler, ePosition).x;
+
+				float weightPrev = read_imagef(predictionFromEWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				float weight = weightPrev + alphaError * input;
+
+				write_imagef(predictionFromEWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+			}
+
+			wi++;
+		}
+
+	wi = 0;
+
+	for (int dx = -predictionRadiusFromI; dx <= predictionRadiusFromI; dx++)
+		for (int dy = -predictionRadiusFromI; dy <= predictionRadiusFromI; dy++) {
+			int2 iPosition = (int2)(iCenterPosition.x + dx, iCenterPosition.y + dy);
+
+			if (iPosition.x >= 0 && iPosition.x < iDims.x && iPosition.y >= 0 && iPosition.y < iDims.y) {
+				float input = read_imagef(iStates, defaultUnnormalizedSampler, iPosition).x;
+
+				float weightPrev = read_imagef(predictionFromIWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+
+				float weight = weightPrev + alphaError * input;
+
+				write_imagef(predictionFromIWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
+			}
+
+			wi++;
+		}
 }
