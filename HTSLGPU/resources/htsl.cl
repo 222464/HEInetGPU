@@ -117,7 +117,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	for (int wi = 0; wi < iFeedBackSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitEWeight - minInitEWeight) + minInitEWeight;
+		float weight = randFloat(&seedValue) * (maxInitIWeight - minInitIWeight) + minInitIWeight;
 
 		write_imagef(iFeedBackWeights, weightPosition, (float4)(weight));
 	}
@@ -179,7 +179,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 
 	float activationPrev = read_imagef(eActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -233,7 +233,9 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 
 	wi = 0;
 
-	// Feed back (excitatory)
+	float inhibition = 0.0f;
+
+	// Feed back (inhibitory)
 	for (int dx = -iFeedBackRadius; dx <= iFeedBackRadius; dx++)
 		for (int dy = -iFeedBackRadius; dy <= iFeedBackRadius; dy++) {
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
@@ -243,15 +245,13 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 
 				float weight = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				excitation += input * weight;
+				inhibition += input * weight;
 			}
 
 			wi++;
 		}
 
 	wi = 0;
-
-	float inhibition = 0.0f;
 
 	// Lateral (inhibitory)
 	for (int dx = -iLateralRadius; dx <= iLateralRadius; dx++)
@@ -273,7 +273,7 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 
 	float activationPrev = read_imagef(iActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -392,7 +392,7 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 
 	wi = 0;
 
-	// Feed back (excitatory)
+	// Feed back (inhibitory)
 	for (int dx = -iFeedBackRadius; dx <= iFeedBackRadius; dx++)
 		for (int dy = -iFeedBackRadius; dy <= iFeedBackRadius; dy++) {
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
@@ -404,7 +404,7 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 
 				//float weight = weightPrev + beta * state.x * (input - weightPrev);
 
-				float weight = weightPrev + alpha * (state.x * input.x - state.y * input.y * (1.0f + weightPrev));
+				float weight = fmax(0.0f, weightPrev + alpha * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
