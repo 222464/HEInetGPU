@@ -60,7 +60,8 @@ float randFloat(uint2* state) {
 void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 	write_only image3d_t eFeedBackWeights,
 	int eFeedForwardSize, int eFeedBackSize,
-	float minInitWeight, float maxInitWeight,
+	float minInitEWeight, float maxInitEWeight,
+	float minInitIWeight, float maxInitIWeight,
 	uint2 seed)
 {
 	uint2 seedValue = seed + (uint2)(get_global_id(0), get_global_id(1));
@@ -70,7 +71,7 @@ void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 	for (int wi = 0; wi < eFeedForwardSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+		float weight = randFloat(&seedValue) * (minInitEWeight - minInitEWeight) + minInitEWeight;
 
 		write_imagef(eFeedForwardWeights, weightPosition, (float4)(weight));
 	}
@@ -78,7 +79,7 @@ void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 	for (int wi = 0; wi < eFeedBackSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+		float weight = randFloat(&seedValue) * (maxInitIWeight - minInitIWeight) + minInitIWeight;
 
 		write_imagef(eFeedBackWeights, weightPosition, (float4)(weight));
 	}
@@ -89,7 +90,8 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	write_only image3d_t iLateralWeights,
 	write_only image3d_t iFeedBackWeights,
 	int iFeedForwardSize, int iLateralSize, int iFeedBackSize,
-	float minInitWeight, float maxInitWeight,
+	float minInitEWeight, float maxInitEWeight,
+	float minInitIWeight, float maxInitIWeight,
 	uint2 seed)
 {
 	uint2 seedValue = seed + (uint2)(get_global_id(0), get_global_id(1));
@@ -99,7 +101,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	for (int wi = 0; wi < iFeedForwardSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+		float weight = randFloat(&seedValue) * (maxInitEWeight - minInitEWeight) + minInitEWeight;
 
 		write_imagef(iFeedForwardWeights, weightPosition, (float4)(weight));
 	}
@@ -107,7 +109,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	for (int wi = 0; wi < iLateralSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+		float weight = randFloat(&seedValue) * (maxInitIWeight - minInitIWeight) + minInitIWeight;
 
 		write_imagef(iLateralWeights, weightPosition, (float4)(weight));
 	}
@@ -115,7 +117,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	for (int wi = 0; wi < iFeedBackSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitWeight - minInitWeight) + minInitWeight;
+		float weight = randFloat(&seedValue) * (maxInitEWeight - minInitEWeight) + minInitEWeight;
 
 		write_imagef(iFeedBackWeights, weightPosition, (float4)(weight));
 	}
@@ -177,7 +179,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 
 	float activationPrev = read_imagef(eActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -254,14 +256,16 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 	// Lateral (inhibitory)
 	for (int dx = -iLateralRadius; dx <= iLateralRadius; dx++)
 		for (int dy = -iLateralRadius; dy <= iLateralRadius; dy++) {
-			int2 lateralPosition = (int2)(position.x + dx, position.y + dy);
+			if (dx != 0 || dy != 0) {
+				int2 lateralPosition = (int2)(position.x + dx, position.y + dy);
 
-			if (lateralPosition.x >= 0 && lateralPosition.x < iDims.x && lateralPosition.y >= 0 && lateralPosition.y < iDims.y) {
-				float input = read_imagef(iStatesPrev, defaultUnnormalizedSampler, lateralPosition).x;
+				if (lateralPosition.x >= 0 && lateralPosition.x < iDims.x && lateralPosition.y >= 0 && lateralPosition.y < iDims.y) {
+					float input = read_imagef(iStatesPrev, defaultUnnormalizedSampler, lateralPosition).x;
 
-				float weight = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
+					float weight = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				inhibition += input * weight;
+					inhibition += input * weight;
+				}
 			}
 
 			wi++;
@@ -269,7 +273,7 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 
 	float activationPrev = read_imagef(iActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -394,11 +398,13 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
 			if (feedBackPosition.x >= 0 && feedBackPosition.x < iFeedBackDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iFeedBackDims.y) {
-				float input = read_imagef(feedBackInputs, defaultUnnormalizedSampler, feedBackPosition).x;
+				float2 input = read_imagef(feedBackInputs, defaultUnnormalizedSampler, feedBackPosition).xy;
 
 				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = weightPrev + beta * state.x * (input - weightPrev);
+				//float weight = weightPrev + beta * state.x * (input - weightPrev);
+
+				float weight = weightPrev + alpha * (state.x * input.x - state.y * input.y * (1.0f + weightPrev));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}

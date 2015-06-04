@@ -37,6 +37,19 @@ void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration>
 	int predictionFromISize = std::pow(_predictionRadiusFromI * 2 + 1, 2);
 
 	_prediction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight);
+	_predictionPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight);
+
+	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	cl::size_t<3> zeroCoord;
+	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+	cl::size_t<3> eFeedForwardDimsCoord;
+	eFeedForwardDimsCoord[0] = rscConfigs.front()._eFeedForwardWidth;
+	eFeedForwardDimsCoord[1] = rscConfigs.front()._eFeedForwardHeight;
+	eFeedForwardDimsCoord[2] = 1;
+
+	cs.getQueue().enqueueFillImage(_predictionPrev, zeroColor, zeroCoord, eFeedForwardDimsCoord);
 
 	_predictionFromEWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight, predictionFromESize);
 	_predictionFromEWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight, predictionFromESize);
@@ -138,7 +151,7 @@ void HTSL::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage
 	_kernels->_predictionLearnKernel.setArg(index++, _rscLayers.front()._eLayer._states);
 	_kernels->_predictionLearnKernel.setArg(index++, _rscLayers.front()._iLayer._states);
 	_kernels->_predictionLearnKernel.setArg(index++, inputImage);
-	_kernels->_predictionLearnKernel.setArg(index++, _prediction);
+	_kernels->_predictionLearnKernel.setArg(index++, _predictionPrev);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionFromEWeights._weightsPrev);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionFromIWeights._weightsPrev);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionFromEWeights._weights);
@@ -158,6 +171,10 @@ void HTSL::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage
 void HTSL::stepEnd() {
 	for (int li = 0; li < _rscLayers.size(); li++)
 		_rscLayers[li].stepEnd();
+}
+
+void HTSL::predictionEnd() {
+	std::swap(_prediction, _predictionPrev);
 
 	std::swap(_predictionFromEWeights._weights, _predictionFromEWeights._weightsPrev);
 	std::swap(_predictionFromIWeights._weights, _predictionFromIWeights._weightsPrev);

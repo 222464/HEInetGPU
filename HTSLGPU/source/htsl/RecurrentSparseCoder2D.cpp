@@ -128,6 +128,8 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	_kernels->_eInitializeKernel.setArg(index++, eFeedBackSize);
 	_kernels->_eInitializeKernel.setArg(index++, minInitEWeight);
 	_kernels->_eInitializeKernel.setArg(index++, maxInitEWeight);
+	_kernels->_eInitializeKernel.setArg(index++, minInitIWeight);
+	_kernels->_eInitializeKernel.setArg(index++, maxInitIWeight);
 	_kernels->_eInitializeKernel.setArg(index++, seedE);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_eInitializeKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
@@ -141,6 +143,8 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	_kernels->_iInitializeKernel.setArg(index++, iFeedForwardSize);
 	_kernels->_iInitializeKernel.setArg(index++, iLateralSize);
 	_kernels->_iInitializeKernel.setArg(index++, iFeedBackSize);
+	_kernels->_iInitializeKernel.setArg(index++, minInitEWeight);
+	_kernels->_iInitializeKernel.setArg(index++, maxInitEWeight);
 	_kernels->_iInitializeKernel.setArg(index++, minInitIWeight);
 	_kernels->_iInitializeKernel.setArg(index++, maxInitIWeight);
 	_kernels->_iInitializeKernel.setArg(index++, seedI);

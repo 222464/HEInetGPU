@@ -26,6 +26,8 @@ misrepresented as being the original software.
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
 
+#include <array>
+
 #include <time.h>
 #include <iostream>
 
@@ -54,8 +56,19 @@ int main() {
 	sf::Image testImage;
 	testImage.loadFromFile("testImageWhitened.png");
 
-	int windowWidth = 32;
-	int windowHeight = 32;
+	int windowWidth = 2;
+	int windowHeight = 2;
+
+	float sequence[8][4] = {
+		{ 0.0f, 1.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.0f, 0.0f, 0.0f, 1.0f },
+		{ 0.0f, 1.0f, 0.0f, 0.0f },
+		{ 1.0f, 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 1.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 1.0f, 0.0f },
+		{ 1.0f, 0.0f, 0.0f, 0.0f }
+	};
 
 	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
 
@@ -80,7 +93,7 @@ int main() {
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 8, 8, -0.01f, 0.01f, 0.0f, 0.2f, 0.01f, 0.01f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, -0.01f, 0.01f, 0.0f, 0.0f, 0.01f, 0.01f, cs, rsc2dKernels, htslKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -92,11 +105,15 @@ int main() {
 	sf::RenderWindow window;
 
 	sf::ContextSettings contextSettings;
-	contextSettings.antialiasingLevel = 8;
+	contextSettings.antialiasingLevel = 4;
 
 	window.create(sf::VideoMode(1280, 720), "HTSLGPU", sf::Style::Default, contextSettings);
 
+	window.setFramerateLimit(60);
+
 	bool quit = false;
+
+	int s = 0;
 
 	while (!quit) {
 		sf::Event e;
@@ -109,42 +126,11 @@ int main() {
 			}
 		}
 
-		int sx = distSampleX(generator);
-		int sy = distSampleY(generator);
+		s = (s + 1) % 8;
 
-		std::vector<float> imageData(windowWidth * windowHeight);
-
-		for (int wx = 0; wx < windowWidth; wx++)
-			for (int wy = 0; wy < windowHeight; wy++) {
-				int x = sx + wx;
-				int y = sy + wy;
-
-				sf::Color color = testImage.getPixel(x, y);
-
-				imageData[wx + wy * windowWidth] = (color.r * 0.333f + color.g * 0.333f + color.b * 0.333f) / 255.0f;
-			}
-
-		float mean = 0.0f;
-
-		for (int i = 0; i < imageData.size(); i++)
-			mean += imageData[i];
-
-		mean /= imageData.size();
-
-		float dev2 = 0.0f;
-
-		for (int i = 0; i < imageData.size(); i++) {
-			imageData[i] -= mean;
-
-			dev2 += std::pow(imageData[i], 2);
+		if (s == 0) {
+			std::cout << "Sequence:" << std::endl;
 		}
-
-		dev2 /= imageData.size();
-
-		float scale = 1.0f / std::sqrt(dev2);
-
-		for (int i = 0; i < imageData.size(); i++)
-			imageData[i] *= scale;
 
 		cl::size_t<3> zeroCoord;
 		zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -154,17 +140,27 @@ int main() {
 		dims[1] = windowHeight;
 		dims[2] = 1;
 
-		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, imageData.data());
+		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
 
-		ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
+		for (int iter = 0; iter < 17; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
+			ht.learn(cs, inputImage, zeroImage, 0.005f, 0.005f, 0.02f, 0.005f, 0.005f, 0.005f, 0.02f, 0.05f);
+			ht.stepEnd();
+		}
+		
 		ht.predict(cs);
-		ht.learn(cs, inputImage, zeroImage, 0.001f, 0.1f, 0.01f, 0.001f, 0.001f, 0.1f, 0.01f, 0.01f);
 		ht.learnPrediction(cs, inputImage, 0.01f);
-		ht.stepEnd();
+		ht.predictionEnd();
 
 		window.clear();
 
 		std::vector<cl_float2> iSpikeData(ht.getRSCLayers()[0].getConfig()._iWidth * ht.getRSCLayers()[0].getConfig()._iHeight);
+		std::vector<float> predictionData(windowWidth * windowHeight);
+
+		cl::size_t<3> inputDims;
+		inputDims[0] = windowWidth;
+		inputDims[1] = windowHeight;
+		inputDims[2] = 1;
 
 		cl::size_t<3> eDims;
 		eDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
@@ -177,29 +173,64 @@ int main() {
 		iDims[2] = 1;
 
 		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
-		sf::Image img;
-		img.create(iDims[0], iDims[1]);
+		{
+			sf::Image img;
+			img.create(iDims[0], iDims[1]);
 
-		for (int x = 0; x < iDims[0]; x++)
-			for (int y = 0; y < iDims[1]; y++) {
-				sf::Color c;
-				c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].x;
-				c.a = 255;
+			for (int x = 0; x < iDims[0]; x++)
+				for (int y = 0; y < iDims[1]; y++) {
+					sf::Color c;
+					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].x;
+					c.a = 255;
 
-				img.setPixel(x, y, c);
-			}
+					img.setPixel(x, y, c);
+				}
 
-		sf::Texture tex;
+			sf::Texture tex;
 
-		tex.loadFromImage(img);
+			tex.loadFromImage(img);
 
-		sf::Sprite s;
-		s.setTexture(tex);
+			sf::Sprite s;
+			s.setTexture(tex);
 
-		s.setScale(4.0f, 4.0f);
+			s.setScale(4.0f, 4.0f);
 
-		window.draw(s);
+			window.draw(s);
+		}
+
+		/*{
+			sf::Image img;
+			img.create(inputDims[0], inputDims[1]);
+
+			for (int x = 0; x < inputDims[0]; x++)
+				for (int y = 0; y < inputDims[1]; y++) {
+					sf::Color c;
+					c.r = c.g = c.b = 255 * std::min<float>(1.0f, std::max<float>(0.0f, predictionData[x + y * inputDims[0]]));
+					c.a = 255;
+
+					img.setPixel(x, y, c);
+				}
+
+			sf::Texture tex;
+
+			tex.loadFromImage(img);
+
+			sf::Sprite s;
+			s.setTexture(tex);
+
+			s.setPosition(8.0f * iDims[0], 0.0f);
+
+			s.setScale(4.0f, 4.0f);
+
+			window.draw(s);
+		}*/
+
+		for (int i = 0; i < predictionData.size(); i++)
+			std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
+
+		std::cout << std::endl;
 
 		window.display();
 	}

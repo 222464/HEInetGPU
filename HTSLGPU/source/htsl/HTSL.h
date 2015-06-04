@@ -21,13 +21,15 @@ namespace htsl {
 		int _predictionRadiusFromE;
 		int _predictionRadiusFromI;
 
-		cl::Image2D _prediction;
-		RecurrentSparseCoder2D::Weights2D _predictionFromEWeights;
-		RecurrentSparseCoder2D::Weights2D _predictionFromIWeights;
-
 		std::shared_ptr<Kernels> _kernels;
 
 	public:
+		cl::Image2D _prediction;
+		cl::Image2D _predictionPrev;
+
+		RecurrentSparseCoder2D::Weights2D _predictionFromEWeights;
+		RecurrentSparseCoder2D::Weights2D _predictionFromIWeights;
+
 		// Randomly initialized weights
 		void createRandom(const std::vector<RecurrentSparseCoder2D::Configuration> &rscConfigs,
 			int predictionRadiusFromE, int predictionRadiusFromI,
@@ -54,8 +56,19 @@ namespace htsl {
 		// End step (buffer swap)
 		void stepEnd();
 
+		// End prediction step (buffer swap)
+		void predictionEnd();
+
 		const std::vector<RecurrentSparseCoder2D> &getRSCLayers() const {
 			return _rscLayers;
+		}
+
+		int getPredictionRadiusFromE() const {
+			return _predictionRadiusFromE;
+		}
+
+		int getPredictionRadiusFromI() const {
+			return _predictionRadiusFromI;
 		}
 	};
 
