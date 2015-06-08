@@ -579,3 +579,37 @@ void kernel htsl_predictionLearn(read_only image2d_t eStates, read_only image2d_
 			wi++;
 		}
 }
+
+// Sum spikes - excitatory
+void kernel htsl_sumSpikesE(read_only image2d_t eStates,
+	read_only image2d_t sumSpikesEPrev,
+	write_only image2d_t sumSpikesE,
+	float scalar)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	float ssEPrev = read_imagef(sumSpikesEPrev, position).x;
+
+	float eState = read_imagef(eStates, position).x;
+
+	float ssE = ssEPrev + eState * scalar;
+
+	write_imagef(sumSpikesE, position, (float4)(ssE));
+}
+
+// Sum spikes - inhibitory
+void kernel htsl_sumSpikesI(read_only image2d_t iStates,
+	read_only image2d_t sumSpikesIPrev,
+	write_only image2d_t sumSpikesI,
+	float scalar)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	float ssIPrev = read_imagef(sumSpikesIPrev, position).x;
+
+	float iState = read_imagef(iStates, position).x;
+
+	float ssI = ssIPrev + iState * scalar;
+
+	write_imagef(sumSpikesI, position, (float4)(ssI));
+}

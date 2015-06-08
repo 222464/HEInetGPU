@@ -144,13 +144,13 @@ int main() {
 
 		for (int iter = 0; iter < 17; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.01f);
-			ht.learn(cs, inputImage, zeroImage, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.05f);
+			ht.learn(cs, inputImage, zeroImage, 0.01f, 0.01f, 0.005f, 0.01f, 0.01f, 0.01f, 0.005f, 0.05f);
 			ht.stepEnd();
 		}
 		
 		ht.predict(cs);
 		ht.learnPrediction(cs, inputImage, 0.01f);
-		ht.predictionEnd();
+		ht.predictionEnd(cs);
 
 		window.clear();
 

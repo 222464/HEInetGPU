@@ -9,6 +9,9 @@ void HTSL::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 	_predictKernel = cl::Kernel(program.getProgram(), "htsl_predict");
 
 	_predictionLearnKernel = cl::Kernel(program.getProgram(), "htsl_predictionLearn");
+
+	_sumSpikesEKernel = cl::Kernel(program.getProgram(), "htsl_sumSpikesE");
+	_sumSpikesIKernel = cl::Kernel(program.getProgram(), "htsl_sumSpikesI");
 }
 
 void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration> &rscConfigs,
@@ -39,6 +42,12 @@ void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration>
 	_prediction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight);
 	_predictionPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight);
 
+	_spikeSumsE = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eWidth, rscConfigs.front()._eHeight);
+	_spikeSumsEPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eWidth, rscConfigs.front()._eHeight);
+
+	_spikeSumsI = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._iWidth, rscConfigs.front()._iHeight);
+	_spikeSumsIPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._iWidth, rscConfigs.front()._iHeight);
+
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	cl::size_t<3> zeroCoord;
@@ -49,7 +58,22 @@ void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration>
 	eFeedForwardDimsCoord[1] = rscConfigs.front()._eFeedForwardHeight;
 	eFeedForwardDimsCoord[2] = 1;
 
+	cl::size_t<3> eDims;
+	eDims[0] = rscConfigs.front()._eWidth;
+	eDims[1] = rscConfigs.front()._eHeight;
+	eDims[2] = 1;
+
+	cl::size_t<3> iDims;
+	iDims[0] = rscConfigs.front()._iWidth;
+	iDims[1] = rscConfigs.front()._iHeight;
+	iDims[2] = 1;
+
 	cs.getQueue().enqueueFillImage(_predictionPrev, zeroColor, zeroCoord, eFeedForwardDimsCoord);
+
+	cs.getQueue().enqueueFillImage(_spikeSumsE, zeroColor, zeroCoord, eDims);
+	cs.getQueue().enqueueFillImage(_spikeSumsI, zeroColor, zeroCoord, iDims);
+	cs.getQueue().enqueueFillImage(_spikeSumsEPrev, zeroColor, zeroCoord, eDims);
+	cs.getQueue().enqueueFillImage(_spikeSumsIPrev, zeroColor, zeroCoord, iDims);
 
 	_predictionFromEWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight, predictionFromESize);
 	_predictionFromEWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight, predictionFromESize);
@@ -74,7 +98,7 @@ void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration>
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_predictionInitializeKernel, cl::NullRange, cl::NDRange(rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight));
 }
 
-void HTSL::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay) {
+void HTSL::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar) {
 	const cl::Image2D* pLayerInput = &inputImage;
 
 	// Feed forward
@@ -92,6 +116,25 @@ void HTSL::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const c
 
 		pLayerInput = &_rscLayers[li]._iLayer._states;
 	}
+
+	// Sum spikes
+	int index = 0;
+
+	_kernels->_sumSpikesEKernel.setArg(index++, _rscLayers.front()._eLayer._states);
+	_kernels->_sumSpikesEKernel.setArg(index++, _spikeSumsEPrev);
+	_kernels->_sumSpikesEKernel.setArg(index++, _spikeSumsE);
+	_kernels->_sumSpikesEKernel.setArg(index++, sumSpikeScalar);
+
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_sumSpikesEKernel, cl::NullRange, cl::NDRange(_rscLayers.front().getConfig()._eWidth, _rscLayers.front().getConfig()._eHeight));
+
+	index = 0;
+
+	_kernels->_sumSpikesIKernel.setArg(index++, _rscLayers.front()._iLayer._states);
+	_kernels->_sumSpikesIKernel.setArg(index++, _spikeSumsIPrev);
+	_kernels->_sumSpikesIKernel.setArg(index++, _spikeSumsI);
+	_kernels->_sumSpikesIKernel.setArg(index++, sumSpikeScalar);
+
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_sumSpikesIKernel, cl::NullRange, cl::NDRange(_rscLayers.front().getConfig()._iWidth, _rscLayers.front().getConfig()._iHeight));
 }
 
 void HTSL::predict(sys::ComputeSystem &cs) {
@@ -103,8 +146,8 @@ void HTSL::predict(sys::ComputeSystem &cs) {
 
 	int index = 0;
 
-	_kernels->_predictKernel.setArg(index++, _rscLayers.front()._eLayer._states);
-	_kernels->_predictKernel.setArg(index++, _rscLayers.front()._iLayer._states);
+	_kernels->_predictKernel.setArg(index++, _spikeSumsEPrev);
+	_kernels->_predictKernel.setArg(index++, _spikeSumsIPrev);
 	_kernels->_predictKernel.setArg(index++, _predictionFromEWeights._weightsPrev);
 	_kernels->_predictKernel.setArg(index++, _predictionFromIWeights._weightsPrev);
 	_kernels->_predictKernel.setArg(index++, _prediction);
@@ -148,8 +191,8 @@ void HTSL::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage
 
 	int index = 0;
 
-	_kernels->_predictionLearnKernel.setArg(index++, _rscLayers.front()._eLayer._states);
-	_kernels->_predictionLearnKernel.setArg(index++, _rscLayers.front()._iLayer._states);
+	_kernels->_predictionLearnKernel.setArg(index++, _spikeSumsEPrev);
+	_kernels->_predictionLearnKernel.setArg(index++, _spikeSumsIPrev);
 	_kernels->_predictionLearnKernel.setArg(index++, inputImage);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionPrev);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionFromEWeights._weightsPrev);
@@ -171,13 +214,37 @@ void HTSL::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage
 void HTSL::stepEnd() {
 	for (int li = 0; li < _rscLayers.size(); li++)
 		_rscLayers[li].stepEnd();
+
+	std::swap(_spikeSumsE, _spikeSumsEPrev);
+	std::swap(_spikeSumsI, _spikeSumsIPrev);
 }
 
-void HTSL::predictionEnd() {
+void HTSL::predictionEnd(sys::ComputeSystem &cs) {
 	std::swap(_prediction, _predictionPrev);
 
 	std::swap(_predictionFromEWeights._weights, _predictionFromEWeights._weightsPrev);
 	std::swap(_predictionFromIWeights._weights, _predictionFromIWeights._weightsPrev);
+
+	// Clear spike sums
+	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	cl::size_t<3> zeroCoord;
+	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+	cl::size_t<3> eDims;
+	eDims[0] = _rscLayers.front().getConfig()._eWidth;
+	eDims[1] = _rscLayers.front().getConfig()._eHeight;
+	eDims[2] = 1;
+
+	cl::size_t<3> iDims;
+	iDims[0] = _rscLayers.front().getConfig()._iWidth;
+	iDims[1] = _rscLayers.front().getConfig()._iHeight;
+	iDims[2] = 1;
+
+	cs.getQueue().enqueueFillImage(_spikeSumsE, zeroColor, zeroCoord, eDims);
+	cs.getQueue().enqueueFillImage(_spikeSumsI, zeroColor, zeroCoord, iDims);
+	cs.getQueue().enqueueFillImage(_spikeSumsEPrev, zeroColor, zeroCoord, eDims);
+	cs.getQueue().enqueueFillImage(_spikeSumsIPrev, zeroColor, zeroCoord, iDims);
 }
 
 void htsl::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<RecurrentSparseCoder2D::Configuration> &configs) {

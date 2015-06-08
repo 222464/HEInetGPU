@@ -12,6 +12,9 @@ namespace htsl {
 			cl::Kernel _predictKernel;
 			cl::Kernel _predictionLearnKernel;
 
+			cl::Kernel _sumSpikesEKernel;
+			cl::Kernel _sumSpikesIKernel;
+
 			// Load kernels from program
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
@@ -26,6 +29,10 @@ namespace htsl {
 	public:
 		cl::Image2D _prediction;
 		cl::Image2D _predictionPrev;
+		cl::Image2D _spikeSumsE;
+		cl::Image2D _spikeSumsEPrev;
+		cl::Image2D _spikeSumsI;
+		cl::Image2D _spikeSumsIPrev;
 
 		RecurrentSparseCoder2D::Weights2D _predictionFromEWeights;
 		RecurrentSparseCoder2D::Weights2D _predictionFromIWeights;
@@ -40,7 +47,7 @@ namespace htsl {
 			const std::shared_ptr<Kernels> &htslKernels, std::mt19937 &generator);
 
 		// Run through a simulation step
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar = 0.125f);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);
@@ -57,7 +64,7 @@ namespace htsl {
 		void stepEnd();
 
 		// End prediction step (buffer swap)
-		void predictionEnd();
+		void predictionEnd(sys::ComputeSystem &cs);
 
 		const std::vector<RecurrentSparseCoder2D> &getRSCLayers() const {
 			return _rscLayers;
