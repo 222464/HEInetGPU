@@ -72,28 +72,28 @@ int main() {
 
 	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
 
-	std::vector<cl_int2> eSizes(3);
-	std::vector<cl_int2> iSizes(3);
+	std::vector<cl_int2> eSizes(1);
+	std::vector<cl_int2> iSizes(1);
 
 	eSizes[0].x = 32;
 	eSizes[0].y = 32;
-	eSizes[1].x = 24;
-	eSizes[1].y = 24;
-	eSizes[2].x = 16;
-	eSizes[2].y = 16;
+	//eSizes[1].x = 24;
+	//eSizes[1].y = 24;
+	//eSizes[2].x = 16;
+	//eSizes[2].y = 16;
 
 	iSizes[0].x = 16;
 	iSizes[0].y = 16;
-	iSizes[1].x = 12;
-	iSizes[1].y = 12;
-	iSizes[2].x = 8;
-	iSizes[2].y = 8;
+	//iSizes[1].x = 12;
+	//iSizes[1].y = 12;
+	//iSizes[2].x = 8;
+	//iSizes[2].y = 8;
 
 	cl_int2 inputSize = { windowWidth, windowHeight };
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, -0.05f, 0.05f, 0.0f, 0.05f, 0.01f, 0.01f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 0.05f, 0.0f, 0.05f, 0.01f, 0.01f, cs, rsc2dKernels, htslKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -143,14 +143,13 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
 
 		for (int iter = 0; iter < 17; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.01f);
-			ht.learn(cs, inputImage, zeroImage, 0.01f, 0.01f, 0.005f, 0.01f, 0.01f, 0.01f, 0.005f, 0.05f);
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
+			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.1f, 0.01f, 0.01f, 0.1f, 0.1f, 0.01f, 0.05f);
 			ht.stepEnd();
 		}
 		
 		ht.predict(cs);
-		ht.learnPrediction(cs, inputImage, 0.01f);
-		ht.predictionEnd(cs);
+		ht.learnPrediction(cs, inputImage, 0.005f);
 
 		window.clear();
 
@@ -172,7 +171,7 @@ int main() {
 		iDims[1] = ht.getRSCLayers()[0].getConfig()._iHeight;
 		iDims[2] = 1;
 
-		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -182,7 +181,7 @@ int main() {
 			for (int x = 0; x < iDims[0]; x++)
 				for (int y = 0; y < iDims[1]; y++) {
 					sf::Color c;
-					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].x;
+					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].y;
 					c.a = 255;
 
 					img.setPixel(x, y, c);
@@ -231,6 +230,8 @@ int main() {
 			std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
 
 		std::cout << std::endl;
+
+		ht.predictionEnd(cs);
 
 		window.display();
 	}

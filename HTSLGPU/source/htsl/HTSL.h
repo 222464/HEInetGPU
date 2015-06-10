@@ -47,7 +47,7 @@ namespace htsl {
 			const std::shared_ptr<Kernels> &htslKernels, std::mt19937 &generator);
 
 		// Run through a simulation step
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar = 0.125f);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar = 1.0f / 17.0f);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);
