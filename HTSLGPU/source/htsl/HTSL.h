@@ -55,7 +55,7 @@ namespace htsl {
 		// Learn (seperate from simulation step)
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage,
 			float eAlpha, float eBeta, float eDelta, float iAlpha, float iBeta, float iGamma, float iDelta,
-			float sparsity);
+			float sparsityE, float sparsityI);
 
 		// Learn prediction
 		void learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float alpha);

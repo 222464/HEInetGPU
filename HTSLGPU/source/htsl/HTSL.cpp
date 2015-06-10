@@ -164,20 +164,20 @@ void HTSL::predict(sys::ComputeSystem &cs) {
 
 void HTSL::learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage,
 	float eAlpha, float eBeta, float eDelta, float iAlpha, float iBeta, float iGamma, float iDelta,
-	float sparsity)
+	float sparsityE, float sparsityI)
 {
 	for (int li = 0; li < _rscLayers.size(); li++) {
 		if (li == 0) {
 			if (li == _rscLayers.size() - 1)
-				_rscLayers[li].learn(cs, inputImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsity);
+				_rscLayers[li].learn(cs, inputImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 			else
-				_rscLayers[li].learn(cs, inputImage, _rscLayers[li + 1]._iLayer._states, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsity);
+				_rscLayers[li].learn(cs, inputImage, _rscLayers[li + 1]._iLayer._states, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 		}
 		else {
 			if (li == _rscLayers.size() - 1)
-				_rscLayers[li].learn(cs, _rscLayers[li - 1]._eLayer._states, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsity);
+				_rscLayers[li].learn(cs, _rscLayers[li - 1]._eLayer._states, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 			else
-				_rscLayers[li].learn(cs, _rscLayers[li - 1]._eLayer._states, _rscLayers[li + 1]._iLayer._states, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsity);
+				_rscLayers[li].learn(cs, _rscLayers[li - 1]._eLayer._states, _rscLayers[li + 1]._iLayer._states, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 		}
 	}
 }

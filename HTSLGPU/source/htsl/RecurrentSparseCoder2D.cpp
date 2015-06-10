@@ -259,7 +259,7 @@ void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D
 void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
 	float eAlpha, float eBeta, float eDelta,
 	float iAlpha, float iBeta, float iGamma, float iDelta,
-	float sparsity)
+	float sparsityE, float sparsityI)
 {
 	// Common
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
@@ -300,7 +300,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 		_kernels->_eLearnKernel.setArg(index++, eAlpha);
 		_kernels->_eLearnKernel.setArg(index++, eBeta);
 		_kernels->_eLearnKernel.setArg(index++, eDelta);
-		_kernels->_eLearnKernel.setArg(index++, sparsity);
+		_kernels->_eLearnKernel.setArg(index++, sparsityE);
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_eLearnKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 	}
@@ -335,7 +335,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 		_kernels->_iLearnKernel.setArg(index++, iBeta);
 		_kernels->_iLearnKernel.setArg(index++, iGamma);
 		_kernels->_iLearnKernel.setArg(index++, iDelta);
-		_kernels->_iLearnKernel.setArg(index++, sparsity);
+		_kernels->_iLearnKernel.setArg(index++, sparsityI);
 
 		cs.getQueue().enqueueNDRangeKernel(_kernels->_iLearnKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 	}

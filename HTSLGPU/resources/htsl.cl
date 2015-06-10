@@ -134,8 +134,8 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 feedForwardCenterPosition = (int2)(position.x * eDimsToEFeedForwardDims.x + 0.5f, position.y * eDimsToEFeedForwardDims.y + 0.5f);
-	int2 feedBackCenterPosition = (int2)(position.x * eDimsToIDims.x + 0.5f, position.y * eDimsToIDims.y + 0.5f);
+	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * eDimsToEFeedForwardDims.x + 0.5f, (position.y + 0.5f) * eDimsToEFeedForwardDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * eDimsToIDims.x + 0.5f, (position.y + 0.5f) * eDimsToIDims.y + 0.5f);
 
 	int wi = 0;
 
@@ -207,8 +207,8 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 feedForwardCenterPosition = (int2)(position.x * iDimsToEDims.x + 0.5f, position.y * iDimsToEDims.y + 0.5f);
-	int2 feedBackCenterPosition = (int2)(position.x * iDimsToFeedBackDims.x + 0.5f, position.y * iDimsToFeedBackDims.y + 0.5f);
+	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * iDimsToEDims.x + 0.5f, (position.y + 0.5f) * iDimsToEDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * iDimsToFeedBackDims.x + 0.5f, (position.y + 0.5f) * iDimsToFeedBackDims.y + 0.5f);
 
 	int wi = 0;
 
@@ -302,8 +302,8 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 
 	float2 state = read_imagef(eStates, defaultUnnormalizedSampler, position).xy;
 
-	int2 feedForwardCenterPosition = (int2)(position.x * eDimsToEFeedForwardDims.x + 0.5f, position.y * eDimsToEFeedForwardDims.y + 0.5f);
-	int2 feedBackCenterPosition = (int2)(position.x * eDimsToIDims.x + 0.5f, position.y * eDimsToIDims.y + 0.5f);
+	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * eDimsToEFeedForwardDims.x + 0.5f, (position.y + 0.5f) * eDimsToEFeedForwardDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * eDimsToIDims.x + 0.5f, (position.y + 0.5f) * eDimsToIDims.y + 0.5f);
 
 	int wi = 0;
 
@@ -363,8 +363,8 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 feedForwardCenterPosition = (int2)(position.x * iDimsToEDims.x + 0.5f, position.y * iDimsToEDims.y + 0.5f);
-	int2 feedBackCenterPosition = (int2)(position.x * iDimsToFeedBackDims.x + 0.5f, position.y * iDimsToFeedBackDims.y + 0.5f);
+	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * iDimsToEDims.x + 0.5f, (position.y + 0.5f) * iDimsToEDims.y + 0.5f);
+	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * iDimsToFeedBackDims.x + 0.5f, (position.y + 0.5f) * iDimsToFeedBackDims.y + 0.5f);
 
 	float2 state = read_imagef(iStates, defaultUnnormalizedSampler, position).xy;
 
@@ -402,7 +402,7 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 
 				//float weight = weightPrev + beta * state.x * (input - weightPrev);
 
-				float weight = fmax(0.0f, weightPrev + alpha * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + beta * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -477,8 +477,8 @@ void kernel htsl_predict(read_only image2d_t eStates, read_only image2d_t iState
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 eCenterPosition = (int2)(position.x * eFeedForwardDimsToEDims.x + 0.5f, position.y * eFeedForwardDimsToEDims.y + 0.5f);
-	int2 iCenterPosition = (int2)(position.x * eFeedForwardDimsToIDims.x + 0.5f, position.y * eFeedForwardDimsToIDims.y + 0.5f);
+	int2 eCenterPosition = (int2)((position.x + 0.5f) * eFeedForwardDimsToEDims.x + 0.5f, (position.y + 0.5f) * eFeedForwardDimsToEDims.y + 0.5f);
+	int2 iCenterPosition = (int2)((position.x + 0.5f) * eFeedForwardDimsToIDims.x + 0.5f, (position.y + 0.5f) * eFeedForwardDimsToIDims.y + 0.5f);
 
 	int wi = 0;
 
@@ -531,8 +531,8 @@ void kernel htsl_predictionLearn(read_only image2d_t eStates, read_only image2d_
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	int2 eCenterPosition = (int2)(position.x * eFeedForwardDimsToEDims.x + 0.5f, position.y * eFeedForwardDimsToEDims.y + 0.5f);
-	int2 iCenterPosition = (int2)(position.x * eFeedForwardDimsToIDims.x + 0.5f, position.y * eFeedForwardDimsToIDims.y + 0.5f);
+	int2 eCenterPosition = (int2)((position.x + 0.5f) * eFeedForwardDimsToEDims.x + 0.5f, (position.y + 0.5f) * eFeedForwardDimsToEDims.y + 0.5f);
+	int2 iCenterPosition = (int2)((position.x + 0.5f) * eFeedForwardDimsToIDims.x + 0.5f, (position.y + 0.5f) * eFeedForwardDimsToIDims.y + 0.5f);
 
 	float target = read_imagef(feedForwardInput, defaultUnnormalizedSampler, position).x;
 	float prediction = read_imagef(predictions, defaultUnnormalizedSampler, position).x;

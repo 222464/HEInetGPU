@@ -115,7 +115,7 @@ namespace htsl {
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
 			float eAlpha, float eBeta, float eDelta,
 			float iAlpha, float iBeta, float iGamma, float iDelta,
-			float sparsity);
+			float sparsityE, float sparsityI);
 		
 		// End of simulation step (buffer swaps)
 		void stepEnd();

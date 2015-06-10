@@ -97,7 +97,7 @@ int main() {
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, 0.0f, 10.5f, 0.0f, 0.0f, 0.0001f, 0.0001f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 0.005f, 0.0f, 0.005f, 0.5f, 0.5f, cs, rsc2dKernels, htslKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -161,12 +161,34 @@ int main() {
 				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f);
 			}
 
+		float mean = 0.0f;
+
+		for (int i = 0; i < inputData.size(); i++) {
+			mean += inputData[i];
+		}
+
+		mean /= inputData.size();
+
+		float variance = 0.0f;
+
+		for (int i = 0; i < inputData.size(); i++) {
+			inputData[i] -= mean;
+			variance += inputData[i] * inputData[i];
+		}
+
+		variance /= inputData.size();
+
+		float stdDevInv = 1.0f / std::sqrt(variance);
+
+		for (int i = 0; i < inputData.size(); i++)
+			inputData[i] *= stdDevInv;
+
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
 		for (int iter = 0; iter < 17; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.1f, 0.01f, 0.01f, 0.1f, 0.1f, 0.01f, 0.02f);
-			ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f);
+			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.02f, 0.04f);
+			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
 		
@@ -272,7 +294,7 @@ int main() {
 							int index = (rx + ry * effWeightsDims[0]) + (wx + wy * diam) * effWeightsDims[0] * effWeightsDims[1];
 
 							sf::Color c;
-							c.r = c.g = c.b = 255 * sigmoid(5.0f * eWeights[index]);
+							c.r = c.g = c.b = 255 * sigmoid(4.0f * eWeights[index]);
 							c.a = 255;
 							img.setPixel(rx * diam + wx, ry * diam + wy, c);
 						}
