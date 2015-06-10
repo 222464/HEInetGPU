@@ -71,7 +71,7 @@ void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 	for (int wi = 0; wi < eFeedForwardSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (minInitEWeight - minInitEWeight) + minInitEWeight;
+		float weight = randFloat(&seedValue) * (maxInitEWeight - minInitEWeight) + minInitEWeight;
 
 		write_imagef(eFeedForwardWeights, weightPosition, (float4)(weight));
 	}
@@ -87,8 +87,8 @@ void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 
 // Random weight initialization - inhibitory
 void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
-	write_only image3d_t iLateralWeights,
 	write_only image3d_t iFeedBackWeights,
+	write_only image3d_t iLateralWeights,
 	int iFeedForwardSize, int iLateralSize, int iFeedBackSize,
 	float minInitEWeight, float maxInitEWeight,
 	float minInitIWeight, float maxInitIWeight,

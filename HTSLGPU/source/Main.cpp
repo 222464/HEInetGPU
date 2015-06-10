@@ -33,6 +33,10 @@ misrepresented as being the original software.
 
 #include <random>
 
+float sigmoid(float x) {
+	return 1.0f / (1.0f + std::exp(-x));
+}
+
 int main() {
 	std::mt19937 generator(time(nullptr));
 
@@ -56,10 +60,10 @@ int main() {
 	sf::Image testImage;
 	testImage.loadFromFile("testImageWhitened.png");
 
-	int windowWidth = 2;
-	int windowHeight = 2;
+	int windowWidth = 32;
+	int windowHeight = 32;
 
-	float sequence[8][4] = {
+	/*float sequence[8][4] = {
 		{ 0.0f, 1.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f, 1.0f },
 		{ 0.0f, 0.0f, 0.0f, 1.0f },
@@ -68,22 +72,22 @@ int main() {
 		{ 0.0f, 1.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 1.0f, 0.0f },
 		{ 1.0f, 0.0f, 0.0f, 0.0f }
-	};
+	};*/
 
 	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
 
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
 
-	eSizes[0].x = 32;
-	eSizes[0].y = 32;
+	eSizes[0].x = 16;
+	eSizes[0].y = 16;
 	//eSizes[1].x = 24;
 	//eSizes[1].y = 24;
 	//eSizes[2].x = 16;
 	//eSizes[2].y = 16;
 
-	iSizes[0].x = 16;
-	iSizes[0].y = 16;
+	iSizes[0].x = 8;
+	iSizes[0].y = 8;
 	//iSizes[1].x = 12;
 	//iSizes[1].y = 12;
 	//iSizes[2].x = 8;
@@ -93,7 +97,7 @@ int main() {
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, 0.0f, 0.05f, 0.0f, 0.05f, 0.01f, 0.01f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 10.5f, 0.0f, 0.0f, 0.0001f, 0.0001f, cs, rsc2dKernels, htslKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -111,6 +115,9 @@ int main() {
 
 	window.setFramerateLimit(60);
 
+	std::uniform_int_distribution<int> distX(0, testImage.getSize().x - windowWidth - 1);
+	std::uniform_int_distribution<int> distY(0, testImage.getSize().y - windowHeight - 1);
+
 	bool quit = false;
 
 	int s = 0;
@@ -126,11 +133,11 @@ int main() {
 			}
 		}
 
-		s = (s + 1) % 8;
+		/*s = (s + 1) % 8;
 
 		if (s == 0) {
 			std::cout << "Sequence:" << std::endl;
-		}
+		}*/
 
 		cl::size_t<3> zeroCoord;
 		zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -140,11 +147,26 @@ int main() {
 		dims[1] = windowHeight;
 		dims[2] = 1;
 
-		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
+		sf::Image subImage;
+
+		subImage.create(windowWidth, windowHeight);
+
+		subImage.copy(testImage, 0, 0, sf::IntRect(distX(generator), distY(generator), windowWidth, windowHeight));
+
+		std::vector<float> inputData(windowWidth * windowHeight);
+
+		for (int x = 0; x < windowWidth; x++)
+			for (int y = 0; y < windowHeight; y++) {
+				sf::Color c = subImage.getPixel(x, y);
+				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f);
+			}
+
+		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
 		for (int iter = 0; iter < 17; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.1f, 0.01f, 0.01f, 0.1f, 0.1f, 0.01f, 0.05f);
+			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.1f, 0.01f, 0.01f, 0.1f, 0.1f, 0.01f, 0.02f);
+			ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f);
 			ht.stepEnd();
 		}
 		
@@ -154,6 +176,7 @@ int main() {
 		window.clear();
 
 		std::vector<cl_float2> iSpikeData(ht.getRSCLayers()[0].getConfig()._iWidth * ht.getRSCLayers()[0].getConfig()._iHeight);
+		std::vector<cl_float2> eSpikeData(ht.getRSCLayers()[0].getConfig()._eWidth * ht.getRSCLayers()[0].getConfig()._eHeight);
 		std::vector<float> predictionData(windowWidth * windowHeight);
 
 		cl::size_t<3> inputDims;
@@ -172,6 +195,7 @@ int main() {
 		iDims[2] = 1;
 
 		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eLayer._states, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -181,7 +205,7 @@ int main() {
 			for (int x = 0; x < iDims[0]; x++)
 				for (int y = 0; y < iDims[1]; y++) {
 					sf::Color c;
-					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].y;
+					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].x;
 					c.a = 255;
 
 					img.setPixel(x, y, c);
@@ -199,14 +223,14 @@ int main() {
 			window.draw(s);
 		}
 
-		/*{
+		{
 			sf::Image img;
-			img.create(inputDims[0], inputDims[1]);
+			img.create(eDims[0], eDims[1]);
 
-			for (int x = 0; x < inputDims[0]; x++)
-				for (int y = 0; y < inputDims[1]; y++) {
+			for (int x = 0; x < eDims[0]; x++)
+				for (int y = 0; y < eDims[1]; y++) {
 					sf::Color c;
-					c.r = c.g = c.b = 255 * std::min<float>(1.0f, std::max<float>(0.0f, predictionData[x + y * inputDims[0]]));
+					c.r = c.g = c.b = 255 * eSpikeData[x + y * eDims[0]].x;
 					c.a = 255;
 
 					img.setPixel(x, y, c);
@@ -218,18 +242,60 @@ int main() {
 
 			sf::Sprite s;
 			s.setTexture(tex);
-
 			s.setPosition(8.0f * iDims[0], 0.0f);
 
 			s.setScale(4.0f, 4.0f);
 
 			window.draw(s);
-		}*/
+		}
 
-		for (int i = 0; i < predictionData.size(); i++)
-			std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
+		{
+			cl::size_t<3> effWeightsDims;
+			effWeightsDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
+			effWeightsDims[1] = ht.getRSCLayers()[0].getConfig()._eHeight;
+			effWeightsDims[2] = std::pow(configs[0]._eFeedForwardRadius * 2 + 1, 2);
 
-		std::cout << std::endl;
+			std::vector<float> eWeights(eDims[0] * eDims[1] * effWeightsDims[2], 0.0f);
+
+			cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eFeedForwardWeights._weights, CL_TRUE, zeroCoord, effWeightsDims, 0, 0, eWeights.data());
+
+			sf::Image img;
+
+			int diam = configs[0]._eFeedForwardRadius * 2 + 1;
+
+			img.create(effWeightsDims[0] * diam, effWeightsDims[1] * diam);
+
+			for (int rx = 0; rx < effWeightsDims[0]; rx++)
+				for (int ry = 0; ry < effWeightsDims[1]; ry++) {
+					for (int wx = 0; wx < diam; wx++)
+						for (int wy = 0; wy < diam; wy++) {
+							int index = (rx + ry * effWeightsDims[0]) + (wx + wy * diam) * effWeightsDims[0] * effWeightsDims[1];
+
+							sf::Color c;
+							c.r = c.g = c.b = 255 * sigmoid(5.0f * eWeights[index]);
+							c.a = 255;
+							img.setPixel(rx * diam + wx, ry * diam + wy, c);
+						}
+				}
+
+			sf::Texture tex;
+
+			tex.loadFromImage(img);
+
+			sf::Sprite s;
+
+			s.setTexture(tex);
+			s.setScale(2.0f, 2.0f);
+
+			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 2.0f);
+
+			window.draw(s);
+		}
+
+		//for (int i = 0; i < predictionData.size(); i++)
+		//	std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
+
+		//std::cout << std::endl;
 
 		ht.predictionEnd(cs);
 

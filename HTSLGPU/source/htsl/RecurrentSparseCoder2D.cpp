@@ -81,11 +81,11 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	_iFeedForwardWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iFeedForwardSize);
 	_iFeedForwardWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iFeedForwardSize);
 
-	_iLateralWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iLateralSize);
-	_iLateralWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iLateralSize);
-
 	_iFeedBackWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iFeedBackSize);
 	_iFeedBackWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iFeedBackSize);
+
+	_iLateralWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iLateralSize);
+	_iLateralWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iLateralSize);
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 	cl_float4 eThresholdColor = { initEThreshold, initEThreshold, initEThreshold, initEThreshold };
@@ -104,13 +104,19 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	iDimsCoord[1] = _config._iHeight;
 	iDimsCoord[2] = 1;
 
-	// Clear to defaults (only prev buffers, since other ones will be written to immediately)
+	// Clear to defaults
+	cs.getQueue().enqueueFillImage(_eLayer._activations, zeroColor, zeroCoord, eDimsCoord);
 	cs.getQueue().enqueueFillImage(_eLayer._activationsPrev, zeroColor, zeroCoord, eDimsCoord);
+	cs.getQueue().enqueueFillImage(_eLayer._states, zeroColor, zeroCoord, eDimsCoord);
 	cs.getQueue().enqueueFillImage(_eLayer._statesPrev, zeroColor, zeroCoord, eDimsCoord);
+	cs.getQueue().enqueueFillImage(_eLayer._thresholds, eThresholdColor, zeroCoord, eDimsCoord);
 	cs.getQueue().enqueueFillImage(_eLayer._thresholdsPrev, eThresholdColor, zeroCoord, eDimsCoord);
 
+	cs.getQueue().enqueueFillImage(_iLayer._activations, zeroColor, zeroCoord, iDimsCoord);
 	cs.getQueue().enqueueFillImage(_iLayer._activationsPrev, zeroColor, zeroCoord, iDimsCoord);
+	cs.getQueue().enqueueFillImage(_iLayer._states, zeroColor, zeroCoord, iDimsCoord);
 	cs.getQueue().enqueueFillImage(_iLayer._statesPrev, zeroColor, zeroCoord, iDimsCoord);
+	cs.getQueue().enqueueFillImage(_iLayer._thresholds, iThresholdColor, zeroCoord, iDimsCoord);
 	cs.getQueue().enqueueFillImage(_iLayer._thresholdsPrev, iThresholdColor, zeroCoord, iDimsCoord);
 
 	int index = 0;
@@ -134,12 +140,25 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_eInitializeKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 
+	cl::size_t<3> eFeedForwardWeightsDimsCoord;
+	eFeedForwardWeightsDimsCoord[0] = _config._eWidth;
+	eFeedForwardWeightsDimsCoord[1] = _config._eHeight;
+	eFeedForwardWeightsDimsCoord[2] = eFeedForwardSize;
+
+	cl::size_t<3> eFeedBackWeightsDimsCoord;
+	eFeedBackWeightsDimsCoord[0] = _config._eWidth;
+	eFeedBackWeightsDimsCoord[1] = _config._eHeight;
+	eFeedBackWeightsDimsCoord[2] = eFeedBackSize;
+
+	cs.getQueue().enqueueCopyImage(_eFeedForwardWeights._weightsPrev, _eFeedForwardWeights._weights, zeroCoord, zeroCoord, eFeedForwardWeightsDimsCoord);
+	cs.getQueue().enqueueCopyImage(_eFeedBackWeights._weightsPrev, _eFeedBackWeights._weights, zeroCoord, zeroCoord, eFeedBackWeightsDimsCoord);
+
 	index = 0;
 
 	// Initialize weights
 	_kernels->_iInitializeKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
-	_kernels->_iInitializeKernel.setArg(index++, _iLateralWeights._weightsPrev);
 	_kernels->_iInitializeKernel.setArg(index++, _iFeedBackWeights._weightsPrev);
+	_kernels->_iInitializeKernel.setArg(index++, _iLateralWeights._weightsPrev);
 	_kernels->_iInitializeKernel.setArg(index++, iFeedForwardSize);
 	_kernels->_iInitializeKernel.setArg(index++, iLateralSize);
 	_kernels->_iInitializeKernel.setArg(index++, iFeedBackSize);
@@ -150,6 +169,25 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	_kernels->_iInitializeKernel.setArg(index++, seedI);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_iInitializeKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
+
+	cl::size_t<3> iFeedForwardWeightsDimsCoord;
+	iFeedForwardWeightsDimsCoord[0] = _config._iWidth;
+	iFeedForwardWeightsDimsCoord[1] = _config._iHeight;
+	iFeedForwardWeightsDimsCoord[2] = iFeedForwardSize;
+
+	cl::size_t<3> iFeedBackWeightsDimsCoord;
+	iFeedBackWeightsDimsCoord[0] = _config._iWidth;
+	iFeedBackWeightsDimsCoord[1] = _config._iHeight;
+	iFeedBackWeightsDimsCoord[2] = iFeedBackSize;
+
+	cl::size_t<3> iLateralWeightsDimsCoord;
+	iLateralWeightsDimsCoord[0] = _config._iWidth;
+	iLateralWeightsDimsCoord[1] = _config._iHeight;
+	iLateralWeightsDimsCoord[2] = iLateralSize;
+
+	cs.getQueue().enqueueCopyImage(_iFeedForwardWeights._weightsPrev, _iFeedForwardWeights._weights, zeroCoord, zeroCoord, iFeedForwardWeightsDimsCoord);
+	cs.getQueue().enqueueCopyImage(_iFeedBackWeights._weightsPrev, _iFeedBackWeights._weights, zeroCoord, zeroCoord, iFeedBackWeightsDimsCoord);
+	cs.getQueue().enqueueCopyImage(_iLateralWeights._weightsPrev, _iLateralWeights._weights, zeroCoord, zeroCoord, iLateralWeightsDimsCoord);
 }
 
 void RecurrentSparseCoder2D::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay) {
