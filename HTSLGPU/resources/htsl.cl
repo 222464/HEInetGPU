@@ -101,7 +101,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	for (int wi = 0; wi < iFeedForwardSize; wi++) {
 		int4 weightPosition = (int4)(position.x, position.y, wi, 0);
 
-		float weight = randFloat(&seedValue) * (maxInitEWeight - minInitEWeight) + minInitEWeight;
+		float weight = randFloat(&seedValue) * (maxInitIWeight - minInitIWeight) + minInitIWeight;
 
 		write_imagef(iFeedForwardWeights, weightPosition, (float4)(weight));
 	}
@@ -196,7 +196,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 	write_imagef(eStates, position, (float4)(state, (1.0f - homeoDecay) * statePrev.y + homeoDecay * state, 0.0f, 0.0f));
 }
 
-void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedBackInput,
+void kernel rsc_iActivate(read_only image2d_t eStatesPrev, read_only image2d_t feedBackInput,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	read_only image2d_t iActivationsPrev, read_only image2d_t iStatesPrev,
 	write_only image2d_t iActivations, write_only image2d_t iStates,
@@ -221,7 +221,7 @@ void kernel rsc_iActivate(read_only image2d_t eStates, read_only image2d_t feedB
 			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
 			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eDims.y) {
-				float input = read_imagef(eStates, defaultUnnormalizedSampler, feedForwardPosition).x;
+				float input = read_imagef(eStatesPrev, defaultUnnormalizedSampler, feedForwardPosition).x;
 
 				float weight = read_imagef(iFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
@@ -353,7 +353,7 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 }
 
 // Learn - inhibitory
-void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesPrev, read_only image2d_t feedBackInputs, read_only image2d_t iStates,
+void kernel rsc_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t iStatesPrev, read_only image2d_t feedBackInputs, read_only image2d_t iStates,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	write_only image3d_t iFeedForwardWeights, write_only image3d_t iLateralWeights, write_only image3d_t iFeedBackWeights, write_only image2d_t iThresholds,
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
@@ -376,7 +376,7 @@ void kernel rsc_iLearn(read_only image2d_t eStates, read_only image2d_t iStatesP
 			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
 			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eDims.y) {
-				float2 input = read_imagef(eStates, defaultUnnormalizedSampler, feedForwardPosition).xy;
+				float2 input = read_imagef(eStatesPrev, defaultUnnormalizedSampler, feedForwardPosition).xy;
 
 				float weightPrev = read_imagef(iFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 

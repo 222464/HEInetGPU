@@ -231,7 +231,7 @@ void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D
 
 	int index = 0;
 
-	_kernels->_iActivationKernel.setArg(index++, _eLayer._states);
+	_kernels->_iActivationKernel.setArg(index++, _eLayer._statesPrev);
 	_kernels->_iActivationKernel.setArg(index++, feedBackInput);
 	_kernels->_iActivationKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
 	_kernels->_iActivationKernel.setArg(index++, _iLateralWeights._weightsPrev);
@@ -309,7 +309,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 	{
 		int index = 0;
 
-		_kernels->_iLearnKernel.setArg(index++, _eLayer._states);
+		_kernels->_iLearnKernel.setArg(index++, _eLayer._statesPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iLayer._statesPrev);
 		_kernels->_iLearnKernel.setArg(index++, feedBackInput);
 		_kernels->_iLearnKernel.setArg(index++, _iLayer._states);

@@ -97,7 +97,7 @@ int main() {
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, 0.0f, 0.005f, 0.0f, 0.005f, 0.5f, 0.5f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, htslKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -187,7 +187,7 @@ int main() {
 
 		for (int iter = 0; iter < 17; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.02f, 0.04f);
+			ht.learn(cs, inputImage, zeroImage, 0.0004f, 0.0028f, 0.0028f, 0.0028f, 0.0028f, 0.006f, 0.0028f, 0.01f, 0.02f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
