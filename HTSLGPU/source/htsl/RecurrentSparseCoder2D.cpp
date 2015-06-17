@@ -226,7 +226,7 @@ void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
 	cl_int2 iDims = { _config._iWidth, _config._iHeight };
 	cl_int2 iFeedBackDims = { _config._iFeedBackWidth, _config._iFeedBackHeight };
-	cl_float2 iDimsToEDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(eDims.y + 1) / static_cast<float>(iDims.y + 1) };
+	cl_float2 iDimsToEDims = { static_cast<float>(eDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(eDims.y + 1) / static_cast<float>(iDims.y + 1) };
 	cl_float2 iDimsToFeedBackDims = { static_cast<float>(iFeedBackDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(iFeedBackDims.y + 1) / static_cast<float>(iDims.y + 1) };
 
 	int index = 0;
@@ -272,7 +272,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 
 	// Inhibitory
 	cl_int2 iFeedBackDims = { _config._iFeedBackWidth, _config._iFeedBackHeight };
-	cl_float2 iDimsToEDims = { static_cast<float>(iDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(eDims.y + 1) / static_cast<float>(iDims.y + 1) };
+	cl_float2 iDimsToEDims = { static_cast<float>(eDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(eDims.y + 1) / static_cast<float>(iDims.y + 1) };
 	cl_float2 iDimsToFeedBackDims = { static_cast<float>(iFeedBackDims.x + 1) / static_cast<float>(iDims.x + 1), static_cast<float>(iFeedBackDims.y + 1) / static_cast<float>(iDims.y + 1) };
 
 	// Excitatory

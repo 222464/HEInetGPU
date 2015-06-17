@@ -58,7 +58,7 @@ int main() {
 	htsl::HTSL ht;
 
 	sf::Image testImage;
-	testImage.loadFromFile("testImageWhitened.png");
+	testImage.loadFromFile("testImage_whitened2.png");
 
 	int windowWidth = 32;
 	int windowHeight = 32;
@@ -79,15 +79,15 @@ int main() {
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
 
-	eSizes[0].x = 16;
-	eSizes[0].y = 16;
+	eSizes[0].x = 32;
+	eSizes[0].y = 32;
 	//eSizes[1].x = 24;
 	//eSizes[1].y = 24;
 	//eSizes[2].x = 16;
 	//eSizes[2].y = 16;
 
-	iSizes[0].x = 8;
-	iSizes[0].y = 8;
+	iSizes[0].x = 16;
+	iSizes[0].y = 16;
 	//iSizes[1].x = 12;
 	//iSizes[1].y = 12;
 	//iSizes[2].x = 8;
@@ -185,9 +185,9 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		for (int iter = 0; iter < 17; iter++) {
+		for (int iter = 0; iter < 22; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-			ht.learn(cs, inputImage, zeroImage, 0.0004f, 0.0028f, 0.0028f, 0.0028f, 0.0028f, 0.006f, 0.0028f, 0.01f, 0.02f);
+			ht.learn(cs, inputImage, zeroImage, 0.004f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.01f, 0.02f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
@@ -307,9 +307,9 @@ int main() {
 			sf::Sprite s;
 
 			s.setTexture(tex);
-			s.setScale(2.0f, 2.0f);
+			s.setScale(1.0f, 1.0f);
 
-			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 2.0f);
+			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 1.0f);
 
 			window.draw(s);
 		}

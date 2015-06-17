@@ -20,6 +20,7 @@ misrepresented as being the original software.
 */
 
 // Sampler definitions
+/*
 constant sampler_t normalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
 	CLK_ADDRESS_CLAMP |
 	CLK_FILTER_NEAREST;
@@ -35,6 +36,7 @@ constant sampler_t unnormalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_FAL
 constant sampler_t defaultNormalizedSampler = CLK_NORMALIZED_COORDS_TRUE |
 	CLK_ADDRESS_NONE |
 	CLK_FILTER_NEAREST;
+*/
 
 constant sampler_t defaultUnnormalizedSampler = CLK_NORMALIZED_COORDS_FALSE |
 	CLK_ADDRESS_NONE |
