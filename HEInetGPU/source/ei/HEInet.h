@@ -1,9 +1,9 @@
 #pragma once
 
-#include "RecurrentSparseCoder2D.h"
+#include "EIlayer.h"
 
-namespace htsl {
-	class HTSL {
+namespace ei {
+	class HEInet {
 	public:
 		// Kernels this system uses
 		struct Kernels {
@@ -19,7 +19,7 @@ namespace htsl {
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
 	private:
-		std::vector<RecurrentSparseCoder2D> _rscLayers;
+		std::vector<EIlayer> _rscLayers;
 
 		int _predictionRadiusFromE;
 		int _predictionRadiusFromI;
@@ -34,16 +34,16 @@ namespace htsl {
 		cl::Image2D _spikeSumsI;
 		cl::Image2D _spikeSumsIPrev;
 
-		RecurrentSparseCoder2D::Weights2D _predictionFromEWeights;
-		RecurrentSparseCoder2D::Weights2D _predictionFromIWeights;
+		EIlayer::Weights2D _predictionFromEWeights;
+		EIlayer::Weights2D _predictionFromIWeights;
 
 		// Randomly initialized weights
-		void createRandom(const std::vector<RecurrentSparseCoder2D::Configuration> &rscConfigs,
+		void createRandom(const std::vector<EIlayer::Configuration> &rscConfigs,
 			int predictionRadiusFromE, int predictionRadiusFromI,
 			float minInitEWeight, float maxInitEWeight,
 			float minInitIWeight, float maxInitIWeight,
 			float initEThreshold, float initIThreshold,
-			sys::ComputeSystem &cs, const std::shared_ptr<RecurrentSparseCoder2D::Kernels> &rscKernels,
+			sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &rscKernels,
 			const std::shared_ptr<Kernels> &htslKernels, std::mt19937 &generator);
 
 		// Run through a simulation step
@@ -66,7 +66,7 @@ namespace htsl {
 		// End prediction step (buffer swap)
 		void predictionEnd(sys::ComputeSystem &cs);
 
-		const std::vector<RecurrentSparseCoder2D> &getRSCLayers() const {
+		const std::vector<EIlayer> &getRSCLayers() const {
 			return _rscLayers;
 		}
 
@@ -79,5 +79,5 @@ namespace htsl {
 		}
 	};
 
-	void generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<RecurrentSparseCoder2D::Configuration> &configs);
+	void generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<EIlayer::Configuration> &configs);
 }

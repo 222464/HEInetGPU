@@ -19,11 +19,11 @@ misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
 
-#include "RecurrentSparseCoder2D.h"
+#include "EIlayer.h"
 
-using namespace htsl;
+using namespace ei;
 
-void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &program) {
+void EIlayer::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 	// Create kernels
 	_eInitializeKernel = cl::Kernel(program.getProgram(), "rsc_eInitialize");
 	_iInitializeKernel = cl::Kernel(program.getProgram(), "rsc_iInitialize");
@@ -35,7 +35,7 @@ void RecurrentSparseCoder2D::Kernels::loadFromProgram(sys::ComputeProgram &progr
 	_iLearnKernel = cl::Kernel(program.getProgram(), "rsc_iLearn");
 }
 
-void RecurrentSparseCoder2D::createRandom(const Configuration &config,
+void EIlayer::createRandom(const Configuration &config,
 	float minInitEWeight, float maxInitEWeight,
 	float minInitIWeight, float maxInitIWeight,
 	float initEThreshold, float initIThreshold,
@@ -190,7 +190,7 @@ void RecurrentSparseCoder2D::createRandom(const Configuration &config,
 	cs.getQueue().enqueueCopyImage(_iLateralWeights._weightsPrev, _iLateralWeights._weights, zeroCoord, zeroCoord, iLateralWeightsDimsCoord);
 }
 
-void RecurrentSparseCoder2D::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay) {
+void EIlayer::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay) {
 	cl_int2 eFeedForwardDims = { _config._eFeedForwardWidth, _config._eFeedForwardHeight };
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
 	cl_int2 iDims = { _config._iWidth, _config._iHeight };
@@ -222,7 +222,7 @@ void RecurrentSparseCoder2D::eActivate(sys::ComputeSystem &cs, const cl::Image2D
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_eActivationKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 }
 
-void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float homeoDecay) {
+void EIlayer::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float homeoDecay) {
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
 	cl_int2 iDims = { _config._iWidth, _config._iHeight };
 	cl_int2 iFeedBackDims = { _config._iFeedBackWidth, _config._iFeedBackHeight };
@@ -256,7 +256,7 @@ void RecurrentSparseCoder2D::iActivate(sys::ComputeSystem &cs, const cl::Image2D
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_iActivationKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 }
 
-void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
+void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
 	float eAlpha, float eBeta, float eDelta,
 	float iAlpha, float iBeta, float iGamma, float iDelta,
 	float sparsityE, float sparsityI)
@@ -341,7 +341,7 @@ void RecurrentSparseCoder2D::learn(sys::ComputeSystem &cs, const cl::Image2D &fe
 	}
 }
 
-void RecurrentSparseCoder2D::stepEnd() {
+void EIlayer::stepEnd() {
 	// Swap buffers
 	std::swap(_eLayer._activations, _eLayer._activationsPrev);
 	std::swap(_eLayer._states, _eLayer._statesPrev);

@@ -1,28 +1,28 @@
-#include "HTSL.h"
+#include "HEInet.h"
 
-using namespace htsl;
+using namespace ei;
 
-void HTSL::Kernels::loadFromProgram(sys::ComputeProgram &program) {
+void HEInet::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 	// Create kernels
-	_predictionInitializeKernel = cl::Kernel(program.getProgram(), "htsl_predictionInitialize");
+	_predictionInitializeKernel = cl::Kernel(program.getProgram(), "HEInet_predictionInitialize");
 
-	_predictKernel = cl::Kernel(program.getProgram(), "htsl_predict");
+	_predictKernel = cl::Kernel(program.getProgram(), "HEInet_predict");
 
-	_predictionLearnKernel = cl::Kernel(program.getProgram(), "htsl_predictionLearn");
+	_predictionLearnKernel = cl::Kernel(program.getProgram(), "HEInet_predictionLearn");
 
-	_sumSpikesEKernel = cl::Kernel(program.getProgram(), "htsl_sumSpikesE");
-	_sumSpikesIKernel = cl::Kernel(program.getProgram(), "htsl_sumSpikesI");
+	_sumSpikesEKernel = cl::Kernel(program.getProgram(), "HEInet_sumSpikesE");
+	_sumSpikesIKernel = cl::Kernel(program.getProgram(), "HEInet_sumSpikesI");
 }
 
-void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration> &rscConfigs,
+void HEInet::createRandom(const std::vector<EIlayer::Configuration> &rscConfigs,
 	int predictionRadiusFromE, int predictionRadiusFromI,
 	float minInitEWeight, float maxInitEWeight,
 	float minInitIWeight, float maxInitIWeight,
 	float initEThreshold, float initIThreshold,
-	sys::ComputeSystem &cs, const std::shared_ptr<RecurrentSparseCoder2D::Kernels> &rscKernels,
-	const std::shared_ptr<Kernels> &htslKernels, std::mt19937 &generator)
+	sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &rscKernels,
+	const std::shared_ptr<Kernels> &HEInetKernels, std::mt19937 &generator)
 {
-	_kernels = htslKernels;
+	_kernels = HEInetKernels;
 	_predictionRadiusFromE = predictionRadiusFromE;
 	_predictionRadiusFromI = predictionRadiusFromI;
 
@@ -98,7 +98,7 @@ void HTSL::createRandom(const std::vector<RecurrentSparseCoder2D::Configuration>
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_predictionInitializeKernel, cl::NullRange, cl::NDRange(rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight));
 }
 
-void HTSL::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar) {
+void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar) {
 	const cl::Image2D* pLayerInput = &inputImage;
 
 	// Feed forward
@@ -137,7 +137,7 @@ void HTSL::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const c
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_sumSpikesIKernel, cl::NullRange, cl::NDRange(_rscLayers.front().getConfig()._iWidth, _rscLayers.front().getConfig()._iHeight));
 }
 
-void HTSL::predict(sys::ComputeSystem &cs) {
+void HEInet::predict(sys::ComputeSystem &cs) {
 	cl_float2 eFeedForwardDimsToEDims = { static_cast<float>(_rscLayers.front().getConfig()._eWidth + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardWidth + 1), static_cast<float>(_rscLayers.front().getConfig()._eHeight + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardHeight + 1) };
 	cl_float2 eFeedForwardDimsToIDims = { static_cast<float>(_rscLayers.front().getConfig()._iWidth + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardWidth + 1), static_cast<float>(_rscLayers.front().getConfig()._iHeight + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardHeight + 1) };
 
@@ -162,7 +162,7 @@ void HTSL::predict(sys::ComputeSystem &cs) {
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_predictKernel, cl::NullRange, cl::NDRange(_rscLayers.front().getConfig()._eFeedForwardWidth, _rscLayers.front().getConfig()._eFeedForwardHeight));
 }
 
-void HTSL::learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage,
+void HEInet::learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage,
 	float eAlpha, float eBeta, float eDelta, float iAlpha, float iBeta, float iGamma, float iDelta,
 	float sparsityE, float sparsityI)
 {
@@ -182,7 +182,7 @@ void HTSL::learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl
 	}
 }
 
-void HTSL::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float alpha) {
+void HEInet::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float alpha) {
 	cl_float2 eFeedForwardDimsToEDims = { static_cast<float>(_rscLayers.front().getConfig()._eWidth + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardWidth + 1), static_cast<float>(_rscLayers.front().getConfig()._eHeight + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardHeight + 1) };
 	cl_float2 eFeedForwardDimsToIDims = { static_cast<float>(_rscLayers.front().getConfig()._iWidth + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardWidth + 1), static_cast<float>(_rscLayers.front().getConfig()._iHeight + 1) / static_cast<float>(_rscLayers.front().getConfig()._eFeedForwardHeight + 1) };
 
@@ -211,7 +211,7 @@ void HTSL::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_predictionLearnKernel, cl::NullRange, cl::NDRange(_rscLayers.front().getConfig()._eFeedForwardWidth, _rscLayers.front().getConfig()._eFeedForwardHeight));
 }
 
-void HTSL::stepEnd() {
+void HEInet::stepEnd() {
 	for (int li = 0; li < _rscLayers.size(); li++)
 		_rscLayers[li].stepEnd();
 
@@ -219,7 +219,7 @@ void HTSL::stepEnd() {
 	std::swap(_spikeSumsI, _spikeSumsIPrev);
 }
 
-void HTSL::predictionEnd(sys::ComputeSystem &cs) {
+void HEInet::predictionEnd(sys::ComputeSystem &cs) {
 	std::swap(_prediction, _predictionPrev);
 
 	std::swap(_predictionFromEWeights._weights, _predictionFromEWeights._weightsPrev);
@@ -247,7 +247,7 @@ void HTSL::predictionEnd(sys::ComputeSystem &cs) {
 	cs.getQueue().enqueueFillImage(_spikeSumsIPrev, zeroColor, zeroCoord, iDims);
 }
 
-void htsl::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<RecurrentSparseCoder2D::Configuration> &configs) {
+void HEInet::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<EIlayer::Configuration> &configs) {
 	assert(layerESizes.size() == layerISizes.size());
 	
 	if (configs.size() != layerESizes.size())

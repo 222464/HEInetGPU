@@ -1,5 +1,5 @@
 /*
-HTSLGPU
+HEInetGPU
 Copyright (C) 2015 Eric Laukien
 
 This software is provided 'as-is', without any express or implied
@@ -25,7 +25,7 @@ misrepresented as being the original software.
 
 #include <system/ComputeSystem.h>
 
-#include <htsl/HTSL.h>
+#include <ei/HEInet.h>
 
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
@@ -49,17 +49,17 @@ int main() {
 	cs.create(sys::ComputeSystem::_gpu);
 
 	sys::ComputeProgram program;
-	program.loadFromFile("resources/htsl.cl", cs);
+	program.loadFromFile("resources/ei.cl", cs);
 
-	std::shared_ptr<htsl::RecurrentSparseCoder2D::Kernels> rsc2dKernels = std::make_shared<htsl::RecurrentSparseCoder2D::Kernels>();
+	std::shared_ptr<ei::EIlayer::Kernels> rsc2dKernels = std::make_shared<ei::EIlayer::Kernels>();
 
 	rsc2dKernels->loadFromProgram(program);
 
-	std::shared_ptr<htsl::HTSL::Kernels> htslKernels = std::make_shared<htsl::HTSL::Kernels>();
+	std::shared_ptr<ei::HEInet::Kernels> eiKernels = std::make_shared<ei::HEInet::Kernels>();
 
-	htslKernels->loadFromProgram(program);
+	eiKernels->loadFromProgram(program);
 
-	htsl::HTSL ht;
+	ei::HEInet ht;
 
 	sf::Image testImage;
 	testImage.loadFromFile("testImage_whitened.png");
@@ -67,18 +67,7 @@ int main() {
 	int windowWidth = 32;
 	int windowHeight = 32;
 
-	/*float sequence[8][4] = {
-	{ 0.0f, 1.0f, 0.0f, 0.0f },
-	{ 0.0f, 0.0f, 0.0f, 1.0f },
-	{ 0.0f, 0.0f, 0.0f, 1.0f },
-	{ 0.0f, 1.0f, 0.0f, 0.0f },
-	{ 1.0f, 0.0f, 0.0f, 0.0f },
-	{ 0.0f, 1.0f, 0.0f, 0.0f },
-	{ 0.0f, 0.0f, 1.0f, 0.0f },
-	{ 1.0f, 0.0f, 0.0f, 0.0f }
-	};*/
-
-	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
+	std::vector<ei::EIlayer::Configuration> configs;
 
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
@@ -99,9 +88,9 @@ int main() {
 
 	cl_int2 inputSize = { windowWidth, windowHeight };
 
-	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
+	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, eiKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -112,7 +101,7 @@ int main() {
 	sf::ContextSettings contextSettings;
 	contextSettings.antialiasingLevel = 4;
 
-	window.create(sf::VideoMode(1280, 720), "HTSLGPU", sf::Style::Default, contextSettings);
+	window.create(sf::VideoMode(1280, 720), "HEInetGPU", sf::Style::Default, contextSettings);
 
 	window.setFramerateLimit(60);
 
@@ -133,12 +122,6 @@ int main() {
 				break;
 			}
 		}
-
-		/*s = (s + 1) % 8;
-
-		if (s == 0) {
-		std::cout << "Sequence:" << std::endl;
-		}*/
 
 		cl::size_t<3> zeroCoord;
 		zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -186,9 +169,9 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		for (int iter = 0; iter < 30; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.005f);
-			ht.learn(cs, inputImage, zeroImage, 0.004f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.02f, 0.04f);
+		for (int iter = 0; iter < 22; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.02f);
+			ht.learn(cs, inputImage, zeroImage, 0.003f, 0.01f, 0.01f, 0.01f, 0.01f, 0.03f, 0.01f, 0.02f, 0.04f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
@@ -314,11 +297,6 @@ int main() {
 
 			window.draw(s);
 		}
-
-		//for (int i = 0; i < predictionData.size(); i++)
-		//	std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
-
-		//std::cout << std::endl;
 
 		ht.predictionEnd(cs);
 
