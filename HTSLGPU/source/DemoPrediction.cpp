@@ -19,6 +19,10 @@ misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
 
+#include "Settings.h"
+
+#if DEMO_SELECTION == DEMO_PREDICTION
+
 #include <system/ComputeSystem.h>
 
 #include <htsl/HTSL.h>
@@ -57,13 +61,7 @@ int main() {
 
 	htsl::HTSL ht;
 
-	sf::Image testImage;
-	testImage.loadFromFile("testImage_whitened2.png");
-
-	int windowWidth = 32;
-	int windowHeight = 32;
-
-	/*float sequence[8][4] = {
+	float sequence[8][4] = {
 		{ 0.0f, 1.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.0f, 1.0f },
 		{ 0.0f, 0.0f, 0.0f, 1.0f },
@@ -72,39 +70,36 @@ int main() {
 		{ 0.0f, 1.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 1.0f, 0.0f },
 		{ 1.0f, 0.0f, 0.0f, 0.0f }
-	};*/
+	};
 
 	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
 
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
 
-	eSizes[0].x = 32;
-	eSizes[0].y = 32;
-	//eSizes[1].x = 24;
-	//eSizes[1].y = 24;
-	//eSizes[2].x = 16;
-	//eSizes[2].y = 16;
+	eSizes[0].x = 16;
+	eSizes[0].y = 16;
+	//eSizes[1].x = 12;
+	//eSizes[1].y = 12;
+	//eSizes[2].x = 8;
+	//eSizes[2].y = 8;
 
-	iSizes[0].x = 16;
-	iSizes[0].y = 16;
-	//iSizes[1].x = 12;
-	//iSizes[1].y = 12;
-	//iSizes[2].x = 8;
-	//iSizes[2].y = 8;
+	iSizes[0].x = 8;
+	iSizes[0].y = 8;
+	//iSizes[1].x = 6;
+	//iSizes[1].y = 6;
+	//iSizes[2].x = 4;
+	//iSizes[2].y = 4;
 
-	cl_int2 inputSize = { windowWidth, windowHeight };
+	cl_int2 inputSize = { 2, 2 };
 
 	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
 	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, htslKernels, generator);
 
-	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
+	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), inputSize.x, inputSize.y);
 
 	cl::Image2D zeroImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), 1, 1);
-
-	std::uniform_int_distribution<int> distSampleX(0, testImage.getSize().x - windowWidth - 1);
-	std::uniform_int_distribution<int> distSampleY(0, testImage.getSize().y - windowHeight - 1);
 
 	sf::RenderWindow window;
 
@@ -114,9 +109,6 @@ int main() {
 	window.create(sf::VideoMode(1280, 720), "HTSLGPU", sf::Style::Default, contextSettings);
 
 	window.setFramerateLimit(60);
-
-	std::uniform_int_distribution<int> distX(0, testImage.getSize().x - windowWidth - 1);
-	std::uniform_int_distribution<int> distY(0, testImage.getSize().y - windowHeight - 1);
 
 	bool quit = false;
 
@@ -133,61 +125,25 @@ int main() {
 			}
 		}
 
-		/*s = (s + 1) % 8;
+		s = (s + 1) % 8;
 
 		if (s == 0) {
 			std::cout << "Sequence:" << std::endl;
-		}*/
+		}
 
 		cl::size_t<3> zeroCoord;
 		zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
 
 		cl::size_t<3> dims;
-		dims[0] = windowWidth;
-		dims[1] = windowHeight;
+		dims[0] = inputSize.x;
+		dims[1] = inputSize.y;
 		dims[2] = 1;
 
-		sf::Image subImage;
+		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
 
-		subImage.create(windowWidth, windowHeight);
-
-		subImage.copy(testImage, 0, 0, sf::IntRect(distX(generator), distY(generator), windowWidth, windowHeight));
-
-		std::vector<float> inputData(windowWidth * windowHeight);
-
-		for (int x = 0; x < windowWidth; x++)
-			for (int y = 0; y < windowHeight; y++) {
-				sf::Color c = subImage.getPixel(x, y);
-				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f);
-			}
-
-		float mean = 0.0f;
-
-		for (int i = 0; i < inputData.size(); i++) {
-			mean += inputData[i];
-		}
-
-		mean /= inputData.size();
-
-		float variance = 0.0f;
-
-		for (int i = 0; i < inputData.size(); i++) {
-			inputData[i] -= mean;
-			variance += inputData[i] * inputData[i];
-		}
-
-		variance /= inputData.size();
-
-		float stdDevInv = 1.0f / std::sqrt(variance);
-
-		for (int i = 0; i < inputData.size(); i++)
-			inputData[i] *= stdDevInv;
-
-		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
-
-		for (int iter = 0; iter < 22; iter++) {
+		for (int iter = 0; iter < 30; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-			ht.learn(cs, inputImage, zeroImage, 0.004f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.01f, 0.02f);
+			ht.learn(cs, inputImage, zeroImage, 0.004f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.02f, 0.04f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
@@ -199,11 +155,11 @@ int main() {
 
 		std::vector<cl_float2> iSpikeData(ht.getRSCLayers()[0].getConfig()._iWidth * ht.getRSCLayers()[0].getConfig()._iHeight);
 		std::vector<cl_float2> eSpikeData(ht.getRSCLayers()[0].getConfig()._eWidth * ht.getRSCLayers()[0].getConfig()._eHeight);
-		std::vector<float> predictionData(windowWidth * windowHeight);
+		std::vector<float> predictionData(4);
 
 		cl::size_t<3> inputDims;
-		inputDims[0] = windowWidth;
-		inputDims[1] = windowHeight;
+		inputDims[0] = inputSize.x;
+		inputDims[1] = inputSize.y;
 		inputDims[2] = 1;
 
 		cl::size_t<3> eDims;
@@ -307,17 +263,17 @@ int main() {
 			sf::Sprite s;
 
 			s.setTexture(tex);
-			s.setScale(1.0f, 1.0f);
+			s.setScale(2.0f, 2.0f);
 
-			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 1.0f);
+			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 2.0f);
 
 			window.draw(s);
 		}
 
-		//for (int i = 0; i < predictionData.size(); i++)
-		//	std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
+		for (int i = 0; i < predictionData.size(); i++)
+			std::cout << (predictionData[i] > 0.5f ? 1 : 0) << " ";
 
-		//std::cout << std::endl;
+		std::cout << std::endl;
 
 		ht.predictionEnd(cs);
 
@@ -326,3 +282,5 @@ int main() {
 
 	return 0;
 }
+
+#endif

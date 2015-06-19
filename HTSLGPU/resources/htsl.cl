@@ -20,24 +20,6 @@ misrepresented as being the original software.
 */
 
 // Sampler definitions
-/*
-constant sampler_t normalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
-	CLK_ADDRESS_CLAMP |
-	CLK_FILTER_NEAREST;
-
-constant sampler_t normalizedClampedToEdgeNearestSampler = CLK_NORMALIZED_COORDS_TRUE |
-	CLK_ADDRESS_CLAMP_TO_EDGE |
-	CLK_FILTER_NEAREST;
-
-constant sampler_t unnormalizedClampedNearestSampler = CLK_NORMALIZED_COORDS_FALSE |
-	CLK_ADDRESS_CLAMP |
-	CLK_FILTER_NEAREST;
-
-constant sampler_t defaultNormalizedSampler = CLK_NORMALIZED_COORDS_TRUE |
-	CLK_ADDRESS_NONE |
-	CLK_FILTER_NEAREST;
-*/
-
 constant sampler_t defaultUnnormalizedSampler = CLK_NORMALIZED_COORDS_FALSE |
 	CLK_ADDRESS_NONE |
 	CLK_FILTER_NEAREST;
@@ -180,7 +162,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 
 	float activationPrev = read_imagef(eActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -273,7 +255,7 @@ void kernel rsc_iActivate(read_only image2d_t eStatesPrev, read_only image2d_t f
 
 	float activationPrev = read_imagef(iActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
 

@@ -114,7 +114,7 @@ void HTSL::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const c
 	for (int li = _rscLayers.size() - 1; li >= 0; li--) {
 		_rscLayers[li].iActivate(cs, *pLayerInput, eta, homeoDecay);
 
-		pLayerInput = &_rscLayers[li]._iLayer._states; // states, or statesPrev?
+		pLayerInput = &_rscLayers[li]._iLayer._statesPrev; // states, or statesPrev?
 	}
 
 	// Sum spikes
