@@ -1,5 +1,5 @@
 /*
-HTSLGPU
+HEInetGPU
 Copyright (C) 2015 Eric Laukien
 
 This software is provided 'as-is', without any express or implied
@@ -106,7 +106,7 @@ int main() {
 	sf::ContextSettings contextSettings;
 	contextSettings.antialiasingLevel = 4;
 
-	window.create(sf::VideoMode(1280, 720), "HTSLGPU", sf::Style::Default, contextSettings);
+	window.create(sf::VideoMode(1280, 720), "HEInetGPU", sf::Style::Default, contextSettings);
 
 	window.setFramerateLimit(60);
 
@@ -153,8 +153,8 @@ int main() {
 
 		window.clear();
 
-		std::vector<cl_float2> iSpikeData(ht.getRSCLayers()[0].getConfig()._iWidth * ht.getRSCLayers()[0].getConfig()._iHeight);
-		std::vector<cl_float2> eSpikeData(ht.getRSCLayers()[0].getConfig()._eWidth * ht.getRSCLayers()[0].getConfig()._eHeight);
+		std::vector<cl_float2> iSpikeData(ht.getEIlayers()[0].getConfig()._iWidth * ht.getEIlayers()[0].getConfig()._iHeight);
+		std::vector<cl_float2> eSpikeData(ht.getEIlayers()[0].getConfig()._eWidth * ht.getEIlayers()[0].getConfig()._eHeight);
 		std::vector<float> predictionData(4);
 
 		cl::size_t<3> inputDims;
@@ -163,17 +163,17 @@ int main() {
 		inputDims[2] = 1;
 
 		cl::size_t<3> eDims;
-		eDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
-		eDims[1] = ht.getRSCLayers()[0].getConfig()._eHeight;
+		eDims[0] = ht.getEIlayers()[0].getConfig()._eWidth;
+		eDims[1] = ht.getEIlayers()[0].getConfig()._eHeight;
 		eDims[2] = 1;
 
 		cl::size_t<3> iDims;
-		iDims[0] = ht.getRSCLayers()[0].getConfig()._iWidth;
-		iDims[1] = ht.getRSCLayers()[0].getConfig()._iHeight;
+		iDims[0] = ht.getEIlayers()[0].getConfig()._iWidth;
+		iDims[1] = ht.getEIlayers()[0].getConfig()._iHeight;
 		iDims[2] = 1;
 
-		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
-		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eLayer._states, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._eLayer._states, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -229,13 +229,13 @@ int main() {
 
 		{
 			cl::size_t<3> effWeightsDims;
-			effWeightsDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
-			effWeightsDims[1] = ht.getRSCLayers()[0].getConfig()._eHeight;
+			effWeightsDims[0] = ht.getEIlayers()[0].getConfig()._eWidth;
+			effWeightsDims[1] = ht.getEIlayers()[0].getConfig()._eHeight;
 			effWeightsDims[2] = std::pow(configs[0]._eFeedForwardRadius * 2 + 1, 2);
 
 			std::vector<float> eWeights(eDims[0] * eDims[1] * effWeightsDims[2], 0.0f);
 
-			cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eFeedForwardWeights._weights, CL_TRUE, zeroCoord, effWeightsDims, 0, 0, eWeights.data());
+			cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._eFeedForwardWeights._weights, CL_TRUE, zeroCoord, effWeightsDims, 0, 0, eWeights.data());
 
 			sf::Image img;
 

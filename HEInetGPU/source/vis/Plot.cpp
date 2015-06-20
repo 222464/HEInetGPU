@@ -1,5 +1,5 @@
 /*
-HTSLGPU
+HEInetGPU
 Copyright (C) 2015 Eric Laukien
 
 This software is provided 'as-is', without any express or implied

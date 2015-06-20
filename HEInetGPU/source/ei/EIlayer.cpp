@@ -1,5 +1,5 @@
 /*
-HTSLGPU
+HEInetGPU
 Copyright (C) 2015 Eric Laukien
 
 This software is provided 'as-is', without any express or implied
@@ -39,9 +39,9 @@ void EIlayer::createRandom(const Configuration &config,
 	float minInitEWeight, float maxInitEWeight,
 	float minInitIWeight, float maxInitIWeight,
 	float initEThreshold, float initIThreshold,
-	sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator)
+	sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator)
 {
-	_kernels = kernels;
+	_kernels = eilKernels;
 
 	_config = config;
 

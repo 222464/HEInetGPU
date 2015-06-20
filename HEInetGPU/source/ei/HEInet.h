@@ -19,7 +19,7 @@ namespace ei {
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
 	private:
-		std::vector<EIlayer> _rscLayers;
+		std::vector<EIlayer> _eiLayers;
 
 		int _predictionRadiusFromE;
 		int _predictionRadiusFromI;
@@ -38,13 +38,13 @@ namespace ei {
 		EIlayer::Weights2D _predictionFromIWeights;
 
 		// Randomly initialized weights
-		void createRandom(const std::vector<EIlayer::Configuration> &rscConfigs,
+		void createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 			int predictionRadiusFromE, int predictionRadiusFromI,
 			float minInitEWeight, float maxInitEWeight,
 			float minInitIWeight, float maxInitIWeight,
 			float initEThreshold, float initIThreshold,
-			sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &rscKernels,
-			const std::shared_ptr<Kernels> &htslKernels, std::mt19937 &generator);
+			sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &eilKernels,
+			const std::shared_ptr<Kernels> &heiKernels, std::mt19937 &generator);
 
 		// Run through a simulation step
 		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar = 1.0f / 17.0f);
@@ -66,8 +66,8 @@ namespace ei {
 		// End prediction step (buffer swap)
 		void predictionEnd(sys::ComputeSystem &cs);
 
-		const std::vector<EIlayer> &getRSCLayers() const {
-			return _rscLayers;
+		const std::vector<EIlayer> &getEIlayers() const {
+			return _eiLayers;
 		}
 
 		int getPredictionRadiusFromE() const {

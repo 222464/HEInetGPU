@@ -1,5 +1,5 @@
 /*
-HTSLGPU
+HEInetGPU
 Copyright (C) 2015 Eric Laukien
 
 This software is provided 'as-is', without any express or implied
@@ -105,7 +105,7 @@ namespace ei {
 			float minInitEWeight, float maxInitEWeight,
 			float minInitIWeight, float maxInitIWeight,
 			float initEThreshold, float initIThreshold,
-			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &kernels, std::mt19937 &generator);
+			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes
 		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay);
