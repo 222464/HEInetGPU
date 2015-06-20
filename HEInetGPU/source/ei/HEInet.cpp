@@ -247,7 +247,7 @@ void HEInet::predictionEnd(sys::ComputeSystem &cs) {
 	cs.getQueue().enqueueFillImage(_spikeSumsIPrev, zeroColor, zeroCoord, iDims);
 }
 
-void HEInet::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<EIlayer::Configuration> &configs) {
+void ei::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<EIlayer::Configuration> &configs) {
 	assert(layerESizes.size() == layerISizes.size());
 	
 	if (configs.size() != layerESizes.size())

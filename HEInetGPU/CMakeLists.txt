@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 
-project(HTSLGPU)
+project(HEInetGPU)
 
 include_directories("${PROJECT_SOURCE_DIR}/source")
 
@@ -21,7 +21,7 @@ find_package(SFML 2 REQUIRED system window graphics)
  
 include_directories(${SFML_INCLUDE_DIR})
  
-add_executable(HTSLGPU "${PROJECT_SOURCE_DIR}/source/Main.cpp")
+add_executable(HEInetGPU "${PROJECT_SOURCE_DIR}/source/DemoFeatureExtraction.cpp")
 
-target_link_libraries(HTSLGPU ${OPENCL_LIBRARIES})
-target_link_libraries(HTSLGPU ${SFML_LIBRARIES})
+target_link_libraries(HEInetGPU ${OPENCL_LIBRARIES})
+target_link_libraries(HEInetGPU ${SFML_LIBRARIES})
