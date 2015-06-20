@@ -58,6 +58,16 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &rscConfigs,
 	eFeedForwardDimsCoord[1] = rscConfigs.front()._eFeedForwardHeight;
 	eFeedForwardDimsCoord[2] = 1;
 
+	cl::size_t<3> ePredictionWeightsDims;
+	ePredictionWeightsDims[0] = rscConfigs.front()._eFeedForwardWidth;
+	ePredictionWeightsDims[1] = rscConfigs.front()._eFeedForwardHeight;
+	ePredictionWeightsDims[2] = predictionFromESize;
+
+	cl::size_t<3> iPredictionWeightsDims;
+	iPredictionWeightsDims[0] = rscConfigs.front()._eFeedForwardWidth;
+	iPredictionWeightsDims[1] = rscConfigs.front()._eFeedForwardHeight;
+	iPredictionWeightsDims[2] = predictionFromISize;
+
 	cl::size_t<3> eDims;
 	eDims[0] = rscConfigs.front()._eWidth;
 	eDims[1] = rscConfigs.front()._eHeight;
@@ -96,6 +106,9 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &rscConfigs,
 	_kernels->_predictionInitializeKernel.setArg(index++, seed);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_predictionInitializeKernel, cl::NullRange, cl::NDRange(rscConfigs.front()._eFeedForwardWidth, rscConfigs.front()._eFeedForwardHeight));
+
+	cs.getQueue().enqueueCopyImage(_predictionFromEWeights._weightsPrev, _predictionFromEWeights._weights, zeroCoord, zeroCoord, ePredictionWeightsDims);
+	cs.getQueue().enqueueCopyImage(_predictionFromIWeights._weightsPrev, _predictionFromIWeights._weights, zeroCoord, zeroCoord, iPredictionWeightsDims);
 }
 
 void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar) {

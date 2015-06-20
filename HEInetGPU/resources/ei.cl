@@ -1,5 +1,5 @@
 /*
-HTSLGPU
+HEInetGPU
 Copyright (C) 2015 Eric Laukien
 
 This software is provided 'as-is', without any express or implied
@@ -41,7 +41,7 @@ float randFloat(uint2* state) {
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 // Random weight initialization - excitatory
-void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
+void kernel EIlayer_eInitialize(write_only image3d_t eFeedForwardWeights,
 	write_only image3d_t eFeedBackWeights,
 	int eFeedForwardSize, int eFeedBackSize,
 	float minInitEWeight, float maxInitEWeight,
@@ -70,7 +70,7 @@ void kernel rsc_eInitialize(write_only image3d_t eFeedForwardWeights,
 }
 
 // Random weight initialization - inhibitory
-void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
+void kernel EIlayer_iInitialize(write_only image3d_t iFeedForwardWeights,
 	write_only image3d_t iFeedBackWeights,
 	write_only image3d_t iLateralWeights,
 	int iFeedForwardSize, int iLateralSize, int iFeedBackSize,
@@ -107,7 +107,7 @@ void kernel rsc_iInitialize(write_only image3d_t iFeedForwardWeights,
 	}
 }
 
-void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev,
+void kernel EIlayer_eActivate(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	read_only image2d_t eActivationsPrev, read_only image2d_t eStatesPrev,
 	write_only image2d_t eActivations, write_only image2d_t eStates,
@@ -180,7 +180,7 @@ void kernel rsc_eActivate(read_only image2d_t feedForwardInput, read_only image2
 	write_imagef(eStates, position, (float4)(state, (1.0f - homeoDecay) * statePrev.y + homeoDecay * state, 0.0f, 0.0f));
 }
 
-void kernel rsc_iActivate(read_only image2d_t eStatesPrev, read_only image2d_t feedBackInput,
+void kernel EIlayer_iActivate(read_only image2d_t eStatesPrev, read_only image2d_t feedBackInput,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	read_only image2d_t iActivationsPrev, read_only image2d_t iStatesPrev,
 	write_only image2d_t iActivations, write_only image2d_t iStates,
@@ -274,7 +274,7 @@ void kernel rsc_iActivate(read_only image2d_t eStatesPrev, read_only image2d_t f
 }
 
 // Learn - excitatory
-void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev, read_only image2d_t eStates,
+void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev, read_only image2d_t eStates,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	write_only image3d_t eFeedForwardWeights, write_only image3d_t eFeedBackWeights, write_only image2d_t eThresholds,
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
@@ -337,7 +337,7 @@ void kernel rsc_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t
 }
 
 // Learn - inhibitory
-void kernel rsc_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t iStatesPrev, read_only image2d_t feedBackInputs, read_only image2d_t iStates,
+void kernel EIlayer_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t iStatesPrev, read_only image2d_t feedBackInputs, read_only image2d_t iStates,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	write_only image3d_t iFeedForwardWeights, write_only image3d_t iLateralWeights, write_only image3d_t iFeedBackWeights, write_only image2d_t iThresholds,
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
@@ -422,11 +422,11 @@ void kernel rsc_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t iSta
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------- HTSL --------------------------------------------------------------
+// ------------------------------------------------------------- HEInet --------------------------------------------------------------
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 // Initialize prediction weights
-void kernel htsl_predictionInitialize(write_only image3d_t predictionWeightsFromE, write_only image3d_t predictionWeightsFromI,
+void kernel HEInet_predictionInitialize(write_only image3d_t predictionWeightsFromE, write_only image3d_t predictionWeightsFromI,
 	int predictionFromESize, int predictionFromISize,
 	float minInitWeight, float maxInitWeight, uint2 seed)
 {
@@ -452,7 +452,7 @@ void kernel htsl_predictionInitialize(write_only image3d_t predictionWeightsFrom
 }
 
 // Perceptron from eStates and iStates that forms predictions
-void kernel htsl_predict(read_only image2d_t eStates, read_only image2d_t iStates,
+void kernel HEInet_predict(read_only image2d_t eStates, read_only image2d_t iStates,
 	read_only image3d_t predictionFromEWeightsPrev, read_only image3d_t predictionFromIWeightsPrev,
 	write_only image2d_t predictions,
 	float2 eFeedForwardDimsToEDims, float2 eFeedForwardDimsToIDims,
@@ -504,7 +504,7 @@ void kernel htsl_predict(read_only image2d_t eStates, read_only image2d_t iState
 }
 
 // Learn perceptron
-void kernel htsl_predictionLearn(read_only image2d_t eStates, read_only image2d_t iStates,
+void kernel HEInet_predictionLearn(read_only image2d_t eStates, read_only image2d_t iStates,
 	read_only image2d_t feedForwardInput, read_only image2d_t predictions,
 	read_only image3d_t predictionFromEWeightsPrev, read_only image3d_t predictionFromIWeightsPrev,
 	write_only image3d_t predictionFromEWeights, write_only image3d_t predictionFromIWeights,
@@ -563,7 +563,7 @@ void kernel htsl_predictionLearn(read_only image2d_t eStates, read_only image2d_
 }
 
 // Sum spikes - excitatory
-void kernel htsl_sumSpikesE(read_only image2d_t eStates,
+void kernel HEInet_sumSpikesE(read_only image2d_t eStates,
 	read_only image2d_t sumSpikesEPrev,
 	write_only image2d_t sumSpikesE,
 	float scalar)
@@ -580,7 +580,7 @@ void kernel htsl_sumSpikesE(read_only image2d_t eStates,
 }
 
 // Sum spikes - inhibitory
-void kernel htsl_sumSpikesI(read_only image2d_t iStates,
+void kernel HEInet_sumSpikesI(read_only image2d_t iStates,
 	read_only image2d_t sumSpikesIPrev,
 	write_only image2d_t sumSpikesI,
 	float scalar)

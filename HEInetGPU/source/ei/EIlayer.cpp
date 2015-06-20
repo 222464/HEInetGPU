@@ -25,14 +25,14 @@ using namespace ei;
 
 void EIlayer::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 	// Create kernels
-	_eInitializeKernel = cl::Kernel(program.getProgram(), "rsc_eInitialize");
-	_iInitializeKernel = cl::Kernel(program.getProgram(), "rsc_iInitialize");
+	_eInitializeKernel = cl::Kernel(program.getProgram(), "EIlayer_eInitialize");
+	_iInitializeKernel = cl::Kernel(program.getProgram(), "EIlayer_iInitialize");
 
-	_eActivationKernel = cl::Kernel(program.getProgram(), "rsc_eActivate");
-	_iActivationKernel = cl::Kernel(program.getProgram(), "rsc_iActivate");
+	_eActivationKernel = cl::Kernel(program.getProgram(), "EIlayer_eActivate");
+	_iActivationKernel = cl::Kernel(program.getProgram(), "EIlayer_iActivate");
 
-	_eLearnKernel = cl::Kernel(program.getProgram(), "rsc_eLearn");
-	_iLearnKernel = cl::Kernel(program.getProgram(), "rsc_iLearn");
+	_eLearnKernel = cl::Kernel(program.getProgram(), "EIlayer_eLearn");
+	_iLearnKernel = cl::Kernel(program.getProgram(), "EIlayer_iLearn");
 }
 
 void EIlayer::createRandom(const Configuration &config,

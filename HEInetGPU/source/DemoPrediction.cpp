@@ -25,7 +25,7 @@ misrepresented as being the original software.
 
 #include <system/ComputeSystem.h>
 
-#include <htsl/HTSL.h>
+#include <ei/HEInet.h>
 
 #include <SFML/Window.hpp>
 #include <SFML/Graphics.hpp>
@@ -49,17 +49,17 @@ int main() {
 	cs.create(sys::ComputeSystem::_gpu);
 
 	sys::ComputeProgram program;
-	program.loadFromFile("resources/htsl.cl", cs);
+	program.loadFromFile("resources/ei.cl", cs);
 
-	std::shared_ptr<htsl::RecurrentSparseCoder2D::Kernels> rsc2dKernels = std::make_shared<htsl::RecurrentSparseCoder2D::Kernels>();
+	std::shared_ptr<ei::EIlayer::Kernels> layerKernels = std::make_shared<ei::EIlayer::Kernels>();
 
-	rsc2dKernels->loadFromProgram(program);
+	layerKernels->loadFromProgram(program);
 
-	std::shared_ptr<htsl::HTSL::Kernels> htslKernels = std::make_shared<htsl::HTSL::Kernels>();
+	std::shared_ptr<ei::HEInet::Kernels> hKernels = std::make_shared<ei::HEInet::Kernels>();
 
-	htslKernels->loadFromProgram(program);
+	hKernels->loadFromProgram(program);
 
-	htsl::HTSL ht;
+	ei::HEInet ht;
 
 	float sequence[8][4] = {
 		{ 0.0f, 1.0f, 0.0f, 0.0f },
@@ -72,7 +72,7 @@ int main() {
 		{ 1.0f, 0.0f, 0.0f, 0.0f }
 	};
 
-	std::vector<htsl::RecurrentSparseCoder2D::Configuration> configs;
+	std::vector<ei::EIlayer::Configuration> configs;
 
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
@@ -93,9 +93,9 @@ int main() {
 
 	cl_int2 inputSize = { 2, 2 };
 
-	htsl::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
+	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, htslKernels, generator);
+	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, layerKernels, hKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), inputSize.x, inputSize.y);
 
@@ -141,9 +141,9 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
 
-		for (int iter = 0; iter < 30; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
-			ht.learn(cs, inputImage, zeroImage, 0.004f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.02f, 0.04f);
+		for (int iter = 0; iter < 22; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.02f);
+			ht.learn(cs, inputImage, zeroImage, 0.003f, 0.01f, 0.01f, 0.01f, 0.01f, 0.03f, 0.01f, 0.02f, 0.04f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
