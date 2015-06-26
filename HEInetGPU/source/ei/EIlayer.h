@@ -105,6 +105,7 @@ namespace ei {
 			float minInitEWeight, float maxInitEWeight,
 			float minInitIWeight, float maxInitIWeight,
 			float initEThreshold, float initIThreshold,
+			float sparsityE, float sparsityI,
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes

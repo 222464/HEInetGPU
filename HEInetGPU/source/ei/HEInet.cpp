@@ -19,6 +19,7 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 	float minInitEWeight, float maxInitEWeight,
 	float minInitIWeight, float maxInitIWeight,
 	float initEThreshold, float initIThreshold,
+	float sparsityE, float sparsityI,
 	sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &eilKernels,
 	const std::shared_ptr<Kernels> &heiKernels, std::mt19937 &generator)
 {
@@ -33,6 +34,7 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 		_eiLayers[li].createRandom(eilConfigs[li],
 			minInitEWeight, maxInitEWeight, minInitIWeight, maxInitIWeight,
 			initEThreshold, initIThreshold,
+			sparsityE, sparsityI,
 			cs, eilKernels, generator);
 	}
 

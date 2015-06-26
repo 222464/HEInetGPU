@@ -142,8 +142,8 @@ int main() {
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
 
 		for (int iter = 0; iter < 22; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.02f);
-			ht.learn(cs, inputImage, zeroImage, 0.003f, 0.01f, 0.01f, 0.01f, 0.01f, 0.03f, 0.01f, 0.02f, 0.04f);
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.05f);
+			ht.learn(cs, inputImage, zeroImage, 0.004f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.02f, 0.04f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}

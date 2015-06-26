@@ -64,23 +64,23 @@ int main() {
 	sf::Image testImage;
 	testImage.loadFromFile("testImage_whitened.png");
 
-	int windowWidth = 32;
-	int windowHeight = 32;
+	int windowWidth = 16;
+	int windowHeight = 16;
 
 	std::vector<ei::EIlayer::Configuration> configs;
 
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
 
-	eSizes[0].x = 16;
-	eSizes[0].y = 16;
+	eSizes[0].x = 32;
+	eSizes[0].y = 32;
 	//eSizes[1].x = 24;
 	//eSizes[1].y = 24;
 	//eSizes[2].x = 16;
 	//eSizes[2].y = 16;
 
-	iSizes[0].x = 8;
-	iSizes[0].y = 8;
+	iSizes[0].x = 16;
+	iSizes[0].y = 16;
 	//iSizes[1].x = 12;
 	//iSizes[1].y = 12;
 	//iSizes[2].x = 8;
@@ -90,7 +90,7 @@ int main() {
 
 	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, cs, rsc2dKernels, eiKernels, generator);
+	ht.createRandom(configs, 6, 6, -1.0f, 1.0f, 0.0f, 1.0f, 0.5f, 0.5f, 0.02f, 0.04f, cs, rsc2dKernels, eiKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -169,9 +169,9 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		for (int iter = 0; iter < 22; iter++) {
+		for (int iter = 0; iter < 30; iter++) {
 			ht.update(cs, inputImage, zeroImage, 0.1f, 0.02f);
-			ht.learn(cs, inputImage, zeroImage, 0.003f, 0.01f, 0.01f, 0.01f, 0.01f, 0.03f, 0.01f, 0.02f, 0.04f);
+			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.008f, 0.008f, 0.008f, 0.008f, 0.04f, 0.008f, 0.02f, 0.04f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
@@ -181,8 +181,8 @@ int main() {
 
 		window.clear();
 
-		std::vector<cl_float2> iSpikeData(ht.getRSCLayers()[0].getConfig()._iWidth * ht.getRSCLayers()[0].getConfig()._iHeight);
-		std::vector<cl_float2> eSpikeData(ht.getRSCLayers()[0].getConfig()._eWidth * ht.getRSCLayers()[0].getConfig()._eHeight);
+		std::vector<cl_float2> iSpikeData(ht.getEIlayers()[0].getConfig()._iWidth * ht.getEIlayers()[0].getConfig()._iHeight);
+		std::vector<cl_float2> eSpikeData(ht.getEIlayers()[0].getConfig()._eWidth * ht.getEIlayers()[0].getConfig()._eHeight);
 		std::vector<float> predictionData(windowWidth * windowHeight);
 
 		cl::size_t<3> inputDims;
@@ -191,17 +191,17 @@ int main() {
 		inputDims[2] = 1;
 
 		cl::size_t<3> eDims;
-		eDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
-		eDims[1] = ht.getRSCLayers()[0].getConfig()._eHeight;
+		eDims[0] = ht.getEIlayers()[0].getConfig()._eWidth;
+		eDims[1] = ht.getEIlayers()[0].getConfig()._eHeight;
 		eDims[2] = 1;
 
 		cl::size_t<3> iDims;
-		iDims[0] = ht.getRSCLayers()[0].getConfig()._iWidth;
-		iDims[1] = ht.getRSCLayers()[0].getConfig()._iHeight;
+		iDims[0] = ht.getEIlayers()[0].getConfig()._iWidth;
+		iDims[1] = ht.getEIlayers()[0].getConfig()._iHeight;
 		iDims[2] = 1;
 
-		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
-		cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eLayer._states, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._eLayer._states, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -257,13 +257,13 @@ int main() {
 
 		{
 			cl::size_t<3> effWeightsDims;
-			effWeightsDims[0] = ht.getRSCLayers()[0].getConfig()._eWidth;
-			effWeightsDims[1] = ht.getRSCLayers()[0].getConfig()._eHeight;
+			effWeightsDims[0] = ht.getEIlayers()[0].getConfig()._eWidth;
+			effWeightsDims[1] = ht.getEIlayers()[0].getConfig()._eHeight;
 			effWeightsDims[2] = std::pow(configs[0]._eFeedForwardRadius * 2 + 1, 2);
 
 			std::vector<float> eWeights(eDims[0] * eDims[1] * effWeightsDims[2], 0.0f);
 
-			cs.getQueue().enqueueReadImage(ht.getRSCLayers()[0]._eFeedForwardWeights._weights, CL_TRUE, zeroCoord, effWeightsDims, 0, 0, eWeights.data());
+			cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._eFeedForwardWeights._weights, CL_TRUE, zeroCoord, effWeightsDims, 0, 0, eWeights.data());
 
 			sf::Image img;
 
@@ -291,9 +291,9 @@ int main() {
 			sf::Sprite s;
 
 			s.setTexture(tex);
-			s.setScale(2.0f, 2.0f);
+			//s.setScale(2.0f, 2.0f);
 
-			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 2.0f);
+			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 1.0f);
 
 			window.draw(s);
 		}

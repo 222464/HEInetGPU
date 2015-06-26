@@ -39,6 +39,7 @@ void EIlayer::createRandom(const Configuration &config,
 	float minInitEWeight, float maxInitEWeight,
 	float minInitIWeight, float maxInitIWeight,
 	float initEThreshold, float initIThreshold,
+	float sparsityE, float sparsityI,
 	sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator)
 {
 	_kernels = eilKernels;
@@ -88,6 +89,8 @@ void EIlayer::createRandom(const Configuration &config,
 	_iLateralWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iLateralSize);
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+	cl_float4 eStateColor = { 0.0f, sparsityE, 0.0f, 0.0f };
+	cl_float4 iStateColor = { 0.0f, sparsityI, 0.0f, 0.0f };
 	cl_float4 eThresholdColor = { initEThreshold, initEThreshold, initEThreshold, initEThreshold };
 	cl_float4 iThresholdColor = { initIThreshold, initIThreshold, initIThreshold, initIThreshold };
 
@@ -107,15 +110,15 @@ void EIlayer::createRandom(const Configuration &config,
 	// Clear to defaults
 	cs.getQueue().enqueueFillImage(_eLayer._activations, zeroColor, zeroCoord, eDimsCoord);
 	cs.getQueue().enqueueFillImage(_eLayer._activationsPrev, zeroColor, zeroCoord, eDimsCoord);
-	cs.getQueue().enqueueFillImage(_eLayer._states, zeroColor, zeroCoord, eDimsCoord);
-	cs.getQueue().enqueueFillImage(_eLayer._statesPrev, zeroColor, zeroCoord, eDimsCoord);
+	cs.getQueue().enqueueFillImage(_eLayer._states, eStateColor, zeroCoord, eDimsCoord);
+	cs.getQueue().enqueueFillImage(_eLayer._statesPrev, eStateColor, zeroCoord, eDimsCoord);
 	cs.getQueue().enqueueFillImage(_eLayer._thresholds, eThresholdColor, zeroCoord, eDimsCoord);
 	cs.getQueue().enqueueFillImage(_eLayer._thresholdsPrev, eThresholdColor, zeroCoord, eDimsCoord);
 
 	cs.getQueue().enqueueFillImage(_iLayer._activations, zeroColor, zeroCoord, iDimsCoord);
 	cs.getQueue().enqueueFillImage(_iLayer._activationsPrev, zeroColor, zeroCoord, iDimsCoord);
-	cs.getQueue().enqueueFillImage(_iLayer._states, zeroColor, zeroCoord, iDimsCoord);
-	cs.getQueue().enqueueFillImage(_iLayer._statesPrev, zeroColor, zeroCoord, iDimsCoord);
+	cs.getQueue().enqueueFillImage(_iLayer._states, iStateColor, zeroCoord, iDimsCoord);
+	cs.getQueue().enqueueFillImage(_iLayer._statesPrev, iStateColor, zeroCoord, iDimsCoord);
 	cs.getQueue().enqueueFillImage(_iLayer._thresholds, iThresholdColor, zeroCoord, iDimsCoord);
 	cs.getQueue().enqueueFillImage(_iLayer._thresholdsPrev, iThresholdColor, zeroCoord, iDimsCoord);
 
