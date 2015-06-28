@@ -166,7 +166,7 @@ void kernel EIlayer_eActivate(read_only image2d_t feedForwardInput, read_only im
 
 	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
-	float2 statePrev = read_imagef(eStatesPrev, defaultUnnormalizedSampler, position).xy;
+	float4 statePrev = read_imagef(eStatesPrev, defaultUnnormalizedSampler, position);
 
 	float state = 0.0f;
 
@@ -259,7 +259,7 @@ void kernel EIlayer_iActivate(read_only image2d_t eStatesPrev, read_only image2d
 
 	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
-	float2 statePrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, position).xy;
+	float4 statePrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, position);
 
 	float state = 0.0f;
 
@@ -274,7 +274,8 @@ void kernel EIlayer_iActivate(read_only image2d_t eStatesPrev, read_only image2d
 }
 
 // Learn - excitatory
-void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev, read_only image2d_t eStates,
+void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image2d_t eStatesPrev, read_only image2d_t iStatesPrev,
+	read_only image2d_t eStates, read_only image2d_t iStates,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	write_only image3d_t eFeedForwardWeights, write_only image3d_t eFeedBackWeights, write_only image2d_t eThresholds,
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
@@ -285,6 +286,7 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
 	float2 state = read_imagef(eStates, defaultUnnormalizedSampler, position).xy;
+	float2 statePrev = read_imagef(eStatesPrev, defaultUnnormalizedSampler, position).xy;
 
 	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * eDimsToEFeedForwardDims.x + 0.5f, (position.y + 0.5f) * eDimsToEFeedForwardDims.y + 0.5f);
 	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * eDimsToIDims.x + 0.5f, (position.y + 0.5f) * eDimsToIDims.y + 0.5f);
@@ -301,7 +303,7 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image
 
 				float weightPrev = read_imagef(eFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = weightPrev + alpha * state.x * (input - weightPrev);
+				float weight = weightPrev + alpha * statePrev.x * (input - weightPrev);
 
 				write_imagef(eFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -321,7 +323,7 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image
 
 				float weightPrev = read_imagef(eFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + beta * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + beta * (statePrev.x * input.x - statePrev.y * input.y * (1.0f + weightPrev)));
 
 				write_imagef(eFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -337,7 +339,7 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput, read_only image
 }
 
 // Learn - inhibitory
-void kernel EIlayer_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t iStatesPrev, read_only image2d_t feedBackInputs, read_only image2d_t iStates,
+void kernel EIlayer_iLearn(read_only image2d_t feedBackInputs, read_only image2d_t eStatesPrev, read_only image2d_t iStatesPrev, read_only image2d_t eStates, read_only image2d_t iStates,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	write_only image3d_t iFeedForwardWeights, write_only image3d_t iLateralWeights, write_only image3d_t iFeedBackWeights, write_only image2d_t iThresholds,
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
@@ -351,6 +353,7 @@ void kernel EIlayer_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t 
 	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * iDimsToFeedBackDims.x + 0.5f, (position.y + 0.5f) * iDimsToFeedBackDims.y + 0.5f);
 
 	float2 state = read_imagef(iStates, defaultUnnormalizedSampler, position).xy;
+	float2 statePrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, position).xy;
 
 	int wi = 0;
 
@@ -364,7 +367,7 @@ void kernel EIlayer_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t 
 
 				float weightPrev = read_imagef(iFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + alpha * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + alpha * (statePrev.x * input.x - statePrev.y * input.y * (1.0f + weightPrev)));
 
 				write_imagef(iFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -384,9 +387,7 @@ void kernel EIlayer_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t 
 
 				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				//float weight = weightPrev + beta * state.x * (input - weightPrev);
-
-				float weight = fmax(0.0f, weightPrev + beta * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + beta * (statePrev.x * input.x - statePrev.y * input.y * (1.0f + weightPrev)));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -406,7 +407,7 @@ void kernel EIlayer_iLearn(read_only image2d_t eStatesPrev, read_only image2d_t 
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + gamma * (state.x * input.x - state.y * input.y * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + gamma * (statePrev.x * input.x - statePrev.y * input.y * (1.0f + weightPrev)));
 
 				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}

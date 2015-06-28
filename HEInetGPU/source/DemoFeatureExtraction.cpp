@@ -72,15 +72,15 @@ int main() {
 	std::vector<cl_int2> eSizes(1);
 	std::vector<cl_int2> iSizes(1);
 
-	eSizes[0].x = 32;
-	eSizes[0].y = 32;
+	eSizes[0].x = 16;
+	eSizes[0].y = 16;
 	//eSizes[1].x = 24;
 	//eSizes[1].y = 24;
 	//eSizes[2].x = 16;
 	//eSizes[2].y = 16;
 
-	iSizes[0].x = 16;
-	iSizes[0].y = 16;
+	iSizes[0].x = 8;
+	iSizes[0].y = 8;
 	//iSizes[1].x = 12;
 	//iSizes[1].y = 12;
 	//iSizes[2].x = 8;
@@ -169,9 +169,9 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		for (int iter = 0; iter < 30; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.02f);
-			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.008f, 0.008f, 0.008f, 0.008f, 0.04f, 0.008f, 0.02f, 0.04f);
+		for (int iter = 0; iter < 50; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.2f, 1.0f / 50.0f);
+			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.02f, 0.04f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}
@@ -181,8 +181,8 @@ int main() {
 
 		window.clear();
 
-		std::vector<cl_float2> iSpikeData(ht.getEIlayers()[0].getConfig()._iWidth * ht.getEIlayers()[0].getConfig()._iHeight);
-		std::vector<cl_float2> eSpikeData(ht.getEIlayers()[0].getConfig()._eWidth * ht.getEIlayers()[0].getConfig()._eHeight);
+		std::vector<cl_float> iSpikeData(ht.getEIlayers()[0].getConfig()._iWidth * ht.getEIlayers()[0].getConfig()._iHeight);
+		std::vector<cl_float> eSpikeData(ht.getEIlayers()[0].getConfig()._eWidth * ht.getEIlayers()[0].getConfig()._eHeight);
 		std::vector<float> predictionData(windowWidth * windowHeight);
 
 		cl::size_t<3> inputDims;
@@ -200,8 +200,8 @@ int main() {
 		iDims[1] = ht.getEIlayers()[0].getConfig()._iHeight;
 		iDims[2] = 1;
 
-		cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._iLayer._states, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
-		cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._eLayer._states, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._spikeSumsI, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._spikeSumsE, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -211,7 +211,7 @@ int main() {
 			for (int x = 0; x < iDims[0]; x++)
 				for (int y = 0; y < iDims[1]; y++) {
 					sf::Color c;
-					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]].x;
+					c.r = c.g = c.b = 255 * iSpikeData[x + y * iDims[0]];
 					c.a = 255;
 
 					img.setPixel(x, y, c);
@@ -236,7 +236,7 @@ int main() {
 			for (int x = 0; x < eDims[0]; x++)
 				for (int y = 0; y < eDims[1]; y++) {
 					sf::Color c;
-					c.r = c.g = c.b = 255 * eSpikeData[x + y * eDims[0]].x;
+					c.r = c.g = c.b = 255 * eSpikeData[x + y * eDims[0]];
 					c.a = 255;
 
 					img.setPixel(x, y, c);
@@ -291,9 +291,9 @@ int main() {
 			sf::Sprite s;
 
 			s.setTexture(tex);
-			//s.setScale(2.0f, 2.0f);
+			s.setScale(2.0f, 2.0f);
 
-			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 1.0f);
+			s.setPosition(0.0f, window.getSize().y - img.getSize().y * 2.0f);
 
 			window.draw(s);
 		}

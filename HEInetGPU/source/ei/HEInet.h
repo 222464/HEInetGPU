@@ -31,8 +31,10 @@ namespace ei {
 		cl::Image2D _predictionPrev;
 		cl::Image2D _spikeSumsE;
 		cl::Image2D _spikeSumsEPrev;
+		cl::Image2D _spikeSumsEPrevIter;
 		cl::Image2D _spikeSumsI;
 		cl::Image2D _spikeSumsIPrev;
+		cl::Image2D _spikeSumsIPrevIter;
 
 		EIlayer::Weights2D _predictionFromEWeights;
 		EIlayer::Weights2D _predictionFromIWeights;

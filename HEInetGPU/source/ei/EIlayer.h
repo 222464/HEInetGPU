@@ -76,11 +76,11 @@ namespace ei {
 				_eWidth(16), _eHeight(16),
 				_iWidth(8), _iHeight(8),
 				_iFeedBackWidth(8), _iFeedBackHeight(8),
-				_eFeedForwardRadius(6),
-				_eFeedBackRadius(6),
-				_iFeedForwardRadius(6),
-				_iLateralRadius(6),
-				_iFeedBackRadius(6)
+				_eFeedForwardRadius(4),
+				_eFeedBackRadius(4),
+				_iFeedForwardRadius(4),
+				_iLateralRadius(4),
+				_iFeedBackRadius(4)
 			{}
 		};
 

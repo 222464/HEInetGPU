@@ -89,8 +89,8 @@ void EIlayer::createRandom(const Configuration &config,
 	_iLateralWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), _config._iWidth, _config._iHeight, iLateralSize);
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-	cl_float4 eStateColor = { 0.0f, sparsityE, 0.0f, 0.0f };
-	cl_float4 iStateColor = { 0.0f, sparsityI, 0.0f, 0.0f };
+	cl_float4 eStateColor = { 0.0f, sparsityE, sparsityE, 0.0f };
+	cl_float4 iStateColor = { 0.0f, sparsityI, sparsityI, 0.0f };
 	cl_float4 eThresholdColor = { initEThreshold, initEThreshold, initEThreshold, initEThreshold };
 	cl_float4 iThresholdColor = { initIThreshold, initIThreshold, initIThreshold, initIThreshold };
 
@@ -283,8 +283,10 @@ void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput,
 		int index = 0;
 
 		_kernels->_eLearnKernel.setArg(index++, feedForwardInput);
+		_kernels->_eLearnKernel.setArg(index++, _eLayer._statesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _iLayer._statesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._states);
+		_kernels->_eLearnKernel.setArg(index++, _iLayer._states);
 		_kernels->_eLearnKernel.setArg(index++, _eFeedForwardWeights._weightsPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eFeedBackWeights._weightsPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._thresholdsPrev);
@@ -312,9 +314,10 @@ void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput,
 	{
 		int index = 0;
 
+		_kernels->_iLearnKernel.setArg(index++, feedBackInput);
 		_kernels->_iLearnKernel.setArg(index++, _eLayer._statesPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iLayer._statesPrev);
-		_kernels->_iLearnKernel.setArg(index++, feedBackInput);
+		_kernels->_iLearnKernel.setArg(index++, _eLayer._states);
 		_kernels->_iLearnKernel.setArg(index++, _iLayer._states);
 		_kernels->_iLearnKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iLateralWeights._weightsPrev);
