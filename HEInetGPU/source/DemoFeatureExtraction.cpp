@@ -169,7 +169,7 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		ht.update(cs, inputImage, zeroImage, 0.1f, 0.01f, 1.0f / 30.0f);
+		ht.update(cs, inputImage, zeroImage, 22, 0.1f, 0.01f);
 		ht.learn(cs, inputImage, zeroImage, 0.001f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.04f, 0.08f);
 		//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 		ht.exStepEnd(cs);
