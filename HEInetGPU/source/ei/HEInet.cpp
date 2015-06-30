@@ -210,6 +210,9 @@ void HEInet::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputIma
 }
 
 void HEInet::exStepEnd(sys::ComputeSystem &cs) {
+	for (int li = 0; li < _eiLayers.size(); li++)
+		_eiLayers[li].exStepEnd();
+
 	// Clear spike sums
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -223,9 +226,6 @@ void HEInet::exStepEnd(sys::ComputeSystem &cs) {
 	iDims[0] = _eiLayers.front().getConfig()._iWidth;
 	iDims[1] = _eiLayers.front().getConfig()._iHeight;
 	iDims[2] = 1;
-
-	for (int li = 0; li < _eiLayers.size(); li++)
-		_eiLayers[li].exStepEnd();
 
 	cs.getQueue().enqueueCopyImage(_eiLayers.front()._eLayer._shortAveragesPrev, _eShortAveragePrevIter, zeroCoord, zeroCoord, eDims);
 	cs.getQueue().enqueueCopyImage(_eiLayers.front()._iLayer._shortAveragesPrev, _iShortAveragePrevIter, zeroCoord, zeroCoord, iDims);

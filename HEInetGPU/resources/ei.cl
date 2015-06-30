@@ -407,7 +407,7 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 
 				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + alpha * (shortAverage * inputShortAverage - longAverage * inputLongAverage * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + beta * (shortAverage * inputShortAverage - longAverage * inputLongAverage * (1.0f + weightPrev)));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -428,7 +428,7 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + alpha * (shortAverage * inputShortAverage - longAverage * inputLongAverage * (1.0f + weightPrev)));
+				float weight = fmax(0.0f, weightPrev + gamma * (shortAverage * inputShortAverage - longAverage * inputLongAverage * (1.0f + weightPrev)));
 
 				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
