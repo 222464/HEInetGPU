@@ -90,7 +90,7 @@ int main() {
 
 	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, -0.01f, 0.01f, 0.0f, 0.01f, 0.01f, 0.01f, 0.05f, 0.1f, cs, rsc2dKernels, eiKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 0.01f, 0.0f, 0.01f, 0.01f, 0.01f, 0.03f, 0.03f, cs, rsc2dKernels, eiKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -145,33 +145,11 @@ int main() {
 				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f);
 			}
 
-		float mean = 0.0f;
-
-		for (int i = 0; i < inputData.size(); i++) {
-			mean += inputData[i];
-		}
-
-		mean /= inputData.size();
-
-		float variance = 0.0f;
-
-		for (int i = 0; i < inputData.size(); i++) {
-			inputData[i] -= mean;
-			variance += inputData[i] * inputData[i];
-		}
-
-		variance /= inputData.size();
-
-		float stdDevInv = 1.0f / std::sqrt(variance);
-
-		for (int i = 0; i < inputData.size(); i++)
-			inputData[i] *= stdDevInv;
-
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		ht.update(cs, inputImage, zeroImage, 22, 0.1f, 0.005f);
-		ht.learn(cs, inputImage, zeroImage, 0.01f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.05f, 0.1f);
-		//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
+		ht.update(cs, inputImage, zeroImage, 30, 0.01f);
+		ht.learn(cs, inputImage, zeroImage, 0.1f, 0.28f, 0.28f, 0.28f, 0.28f, 0.6f, 0.28f, 0.03f, 0.03f);
+		ht.updateLongAverages(cs, inputImage, 0.1f);
 		ht.exStepEnd(cs);
 
 		ht.predict(cs);

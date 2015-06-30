@@ -44,7 +44,12 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 	_eShortAveragePrevIter = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eWidth, eilConfigs.front()._eHeight);
 	_iShortAveragePrevIter = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._iWidth, eilConfigs.front()._iHeight);
 
+	_inputLongAverages = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight);
+	_inputLongAveragesPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight);
+
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+	cl_float4 inputLongAverageColor = { sparsityE, sparsityE, sparsityE, sparsityE };
 
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
@@ -79,6 +84,9 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 	cs.getQueue().enqueueFillImage(_eShortAveragePrevIter, zeroColor, zeroCoord, eDims);
 	cs.getQueue().enqueueFillImage(_iShortAveragePrevIter, zeroColor, zeroCoord, iDims);
 
+	cs.getQueue().enqueueFillImage(_inputLongAverages, zeroColor, zeroCoord, eFeedForwardDimsCoord);
+	cs.getQueue().enqueueFillImage(_inputLongAveragesPrev, zeroColor, zeroCoord, eFeedForwardDimsCoord);
+
 	_predictionFromEWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight, predictionFromESize);
 	_predictionFromEWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight, predictionFromESize);
 	
@@ -105,7 +113,7 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 	cs.getQueue().enqueueCopyImage(_predictionFromIWeights._weightsPrev, _predictionFromIWeights._weights, zeroCoord, zeroCoord, iPredictionWeightsDims);
 }
 
-void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta, float longAverageDecay) {
+void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta) {
 	const cl::Image2D* pLayerInput = &inputImage;
 
 	float iterInv = 1.0f / iter;
@@ -116,7 +124,7 @@ void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const
 	for (int i = 0; i < iter; i++) {
 		// Feed forward
 		for (int li = 0; li < _eiLayers.size(); li++) {
-			_eiLayers[li].eActivate(cs, *pLayerInput, eta, iterInv, longAverageDecay);
+			_eiLayers[li].eActivate(cs, *pLayerInput, eta, iterInv);
 
 			pLayerInput = &_eiLayers[li]._eLayer._statesPrev;
 		}
@@ -125,7 +133,7 @@ void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const
 
 		// Feed back
 		for (int li = _eiLayers.size() - 1; li >= 0; li--) {
-			_eiLayers[li].iActivate(cs, *pLayerInput, eta, iterInv, longAverageDecay);
+			_eiLayers[li].iActivate(cs, *pLayerInput, eta, iterInv);
 
 			pLayerInput = &_eiLayers[li]._iLayer._statesPrev;
 		}
@@ -133,6 +141,21 @@ void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const
 		for (int li = 0; li < _eiLayers.size(); li++)
 			_eiLayers[li].simStepEnd();
 	}
+}
+
+void HEInet::updateLongAverages(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float longAverageDecay) {
+	for (int li = 0; li < _eiLayers.size(); li++)
+		_eiLayers[li].updateLongAverages(cs, longAverageDecay);
+
+	// Update long averages
+	int index = 0;
+
+	_eiLayers.front().getKernels()->_longAverageKernel.setArg(index++, inputImage);
+	_eiLayers.front().getKernels()->_longAverageKernel.setArg(index++, _inputLongAveragesPrev);
+	_eiLayers.front().getKernels()->_longAverageKernel.setArg(index++, _inputLongAverages);
+	_eiLayers.front().getKernels()->_longAverageKernel.setArg(index++, longAverageDecay);
+
+	cs.getQueue().enqueueNDRangeKernel(_eiLayers.front().getKernels()->_longAverageKernel, cl::NullRange, cl::NDRange(_eiLayers.front().getConfig()._eFeedForwardWidth, _eiLayers.front().getConfig()._eFeedForwardHeight));
 }
 
 void HEInet::predict(sys::ComputeSystem &cs) {
@@ -167,15 +190,15 @@ void HEInet::learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const 
 	for (int li = 0; li < _eiLayers.size(); li++) {
 		if (li == 0) {
 			if (li == _eiLayers.size() - 1)
-				_eiLayers[li].learn(cs, inputImage, zeroImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, inputImage, _inputLongAveragesPrev, zeroImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 			else
-				_eiLayers[li].learn(cs, inputImage, _eiLayers[li + 1]._iLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._longAveragesPrev, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, inputImage, _inputLongAveragesPrev, _eiLayers[li + 1]._iLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._longAveragesPrev, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 		}
 		else {
 			if (li == _eiLayers.size() - 1)
-				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._shortAveragesPrev, zeroImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._shortAveragesPrev, _eiLayers[li - 1]._eLayer._longAveragesPrev, zeroImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 			else
-				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._longAveragesPrev, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._shortAveragesPrev, _eiLayers[li - 1]._eLayer._longAveragesPrev, _eiLayers[li + 1]._iLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._longAveragesPrev, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 		}
 	}
 }
@@ -229,6 +252,8 @@ void HEInet::exStepEnd(sys::ComputeSystem &cs) {
 
 	cs.getQueue().enqueueCopyImage(_eiLayers.front()._eLayer._shortAveragesPrev, _eShortAveragePrevIter, zeroCoord, zeroCoord, eDims);
 	cs.getQueue().enqueueCopyImage(_eiLayers.front()._iLayer._shortAveragesPrev, _iShortAveragePrevIter, zeroCoord, zeroCoord, iDims);
+
+	std::swap(_inputLongAverages, _inputLongAveragesPrev);
 }
 
 void ei::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<EIlayer::Configuration> &configs) {

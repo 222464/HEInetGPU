@@ -26,6 +26,8 @@ namespace ei {
 	public:
 		cl::Image2D _prediction;
 		cl::Image2D _predictionPrev;
+		cl::Image2D _inputLongAverages;
+		cl::Image2D _inputLongAveragesPrev;
 		cl::Image2D _eShortAveragePrevIter;
 		cl::Image2D _iShortAveragePrevIter;
 
@@ -43,7 +45,10 @@ namespace ei {
 			const std::shared_ptr<Kernels> &heiKernels, std::mt19937 &generator);
 
 		// Run through an example step (multiple simulation steps)
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta, float longAverageDecay);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta);
+
+		// Update long averages
+		void updateLongAverages(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float longAverageDecay);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);

@@ -33,6 +33,8 @@ void EIlayer::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 
 	_eLearnKernel = cl::Kernel(program.getProgram(), "EIlayer_eLearn");
 	_iLearnKernel = cl::Kernel(program.getProgram(), "EIlayer_iLearn");
+
+	_longAverageKernel = cl::Kernel(program.getProgram(), "EIlayer_longAverage");
 }
 
 void EIlayer::createRandom(const Configuration &config,
@@ -213,7 +215,7 @@ void EIlayer::createRandom(const Configuration &config,
 	cs.getQueue().enqueueCopyImage(_iLateralWeights._weightsPrev, _iLateralWeights._weights, zeroCoord, zeroCoord, iLateralWeightsDimsCoord);
 }
 
-void EIlayer::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float shortAverageSamplesInv, float longAverageDecay) {
+void EIlayer::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float shortAverageSamplesInv) {
 	cl_int2 eFeedForwardDims = { _config._eFeedForwardWidth, _config._eFeedForwardHeight };
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
 	cl_int2 iDims = { _config._iWidth, _config._iHeight };
@@ -230,11 +232,9 @@ void EIlayer::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardIn
 	_kernels->_eActivationKernel.setArg(index++, _eLayer._activationsPrev);
 	_kernels->_eActivationKernel.setArg(index++, _eLayer._statesPrev);
 	_kernels->_eActivationKernel.setArg(index++, _eLayer._shortAveragesPrev);
-	_kernels->_eActivationKernel.setArg(index++, _eLayer._longAveragesPrev);
 	_kernels->_eActivationKernel.setArg(index++, _eLayer._activations);
 	_kernels->_eActivationKernel.setArg(index++, _eLayer._states);
 	_kernels->_eActivationKernel.setArg(index++, _eLayer._shortAverages);
-	_kernels->_eActivationKernel.setArg(index++, _eLayer._longAverages);
 
 	_kernels->_eActivationKernel.setArg(index++, eFeedForwardDims);
 	_kernels->_eActivationKernel.setArg(index++, eDims);
@@ -245,12 +245,11 @@ void EIlayer::eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardIn
 	_kernels->_eActivationKernel.setArg(index++, _config._eFeedBackRadius);
 	_kernels->_eActivationKernel.setArg(index++, eta);
 	_kernels->_eActivationKernel.setArg(index++, shortAverageSamplesInv);
-	_kernels->_eActivationKernel.setArg(index++, longAverageDecay);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_eActivationKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
 }
 
-void EIlayer::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv, float longAverageDecay) {
+void EIlayer::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv) {
 	cl_int2 eDims = { _config._eWidth, _config._eHeight };
 	cl_int2 iDims = { _config._iWidth, _config._iHeight };
 	cl_int2 iFeedBackDims = { _config._iFeedBackWidth, _config._iFeedBackHeight };
@@ -268,11 +267,9 @@ void EIlayer::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput
 	_kernels->_iActivationKernel.setArg(index++, _iLayer._activationsPrev);
 	_kernels->_iActivationKernel.setArg(index++, _iLayer._statesPrev);
 	_kernels->_iActivationKernel.setArg(index++, _iLayer._shortAveragesPrev);
-	_kernels->_iActivationKernel.setArg(index++, _iLayer._longAveragesPrev);
 	_kernels->_iActivationKernel.setArg(index++, _iLayer._activations);
 	_kernels->_iActivationKernel.setArg(index++, _iLayer._states);
 	_kernels->_iActivationKernel.setArg(index++, _iLayer._shortAverages);
-	_kernels->_iActivationKernel.setArg(index++, _iLayer._longAverages);
 
 	_kernels->_iActivationKernel.setArg(index++, eDims);
 	_kernels->_iActivationKernel.setArg(index++, iDims);
@@ -284,13 +281,33 @@ void EIlayer::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput
 	_kernels->_iActivationKernel.setArg(index++, _config._iFeedBackRadius);
 	_kernels->_iActivationKernel.setArg(index++, eta);
 	_kernels->_iActivationKernel.setArg(index++, shortAverageSamplesInv);
-	_kernels->_iActivationKernel.setArg(index++, longAverageDecay);
 
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_iActivationKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 }
 
-void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedBackShortAverages,
-	const cl::Image2D &feedBackLongAverages,
+void EIlayer::updateLongAverages(sys::ComputeSystem &cs, float longAverageDecay) {
+	int index = 0;
+
+	_kernels->_longAverageKernel.setArg(index++, _eLayer._shortAveragesPrev);
+	_kernels->_longAverageKernel.setArg(index++, _eLayer._longAveragesPrev);
+	_kernels->_longAverageKernel.setArg(index++, _eLayer._longAverages);
+	_kernels->_longAverageKernel.setArg(index++, longAverageDecay);
+
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_longAverageKernel, cl::NullRange, cl::NDRange(_config._eWidth, _config._eHeight));
+
+	index = 0;
+
+	_kernels->_longAverageKernel.setArg(index++, _iLayer._shortAveragesPrev);
+	_kernels->_longAverageKernel.setArg(index++, _iLayer._longAveragesPrev);
+	_kernels->_longAverageKernel.setArg(index++, _iLayer._longAverages);
+	_kernels->_longAverageKernel.setArg(index++, longAverageDecay);
+
+	cs.getQueue().enqueueNDRangeKernel(_kernels->_longAverageKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
+}
+
+void EIlayer::learn(sys::ComputeSystem &cs,
+	const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedForwardLongAverages,
+	const cl::Image2D &feedBackShortAverages, const cl::Image2D &feedBackLongAverages,
 	float eAlpha, float eBeta, float eDelta,
 	float iAlpha, float iBeta, float iGamma, float iDelta,
 	float sparsityE, float sparsityI)
@@ -314,6 +331,7 @@ void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortA
 		int index = 0;
 
 		_kernels->_eLearnKernel.setArg(index++, feedForwardShortAverages);
+		_kernels->_eLearnKernel.setArg(index++, feedForwardLongAverages);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._shortAveragesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._longAveragesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _iLayer._shortAveragesPrev);
@@ -407,12 +425,10 @@ void EIlayer::simStepEnd() {
 	std::swap(_eLayer._activations, _eLayer._activationsPrev);
 	std::swap(_eLayer._states, _eLayer._statesPrev);
 	std::swap(_eLayer._shortAverages, _eLayer._shortAveragesPrev);
-	std::swap(_eLayer._longAverages, _eLayer._longAveragesPrev);
 
 	std::swap(_iLayer._activations, _iLayer._activationsPrev);
 	std::swap(_iLayer._states, _iLayer._statesPrev);
-	std::swap(_iLayer._shortAverages, _iLayer._shortAveragesPrev);
-	std::swap(_iLayer._longAverages, _iLayer._longAveragesPrev);
+	std::swap(_iLayer._shortAverages, _iLayer._shortAveragesPrev);	
 }
 
 void EIlayer::exStepEnd() {
@@ -424,4 +440,7 @@ void EIlayer::exStepEnd() {
 	std::swap(_iLateralWeights._weights, _iLateralWeights._weightsPrev);
 	std::swap(_iFeedBackWeights._weights, _iFeedBackWeights._weightsPrev);
 	std::swap(_iLayer._thresholds, _iLayer._thresholdsPrev);
+
+	std::swap(_eLayer._longAverages, _eLayer._longAveragesPrev);
+	std::swap(_iLayer._longAverages, _iLayer._longAveragesPrev);
 }

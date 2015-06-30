@@ -40,6 +40,8 @@ namespace ei {
 			cl::Kernel _eLearnKernel;
 			cl::Kernel _iLearnKernel;
 
+			cl::Kernel _longAverageKernel;
+
 			// Load kernels from program
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
@@ -82,11 +84,11 @@ namespace ei {
 				_eWidth(16), _eHeight(16),
 				_iWidth(8), _iHeight(8),
 				_iFeedBackWidth(8), _iFeedBackHeight(8),
-				_eFeedForwardRadius(4),
-				_eFeedBackRadius(4),
-				_iFeedForwardRadius(4),
-				_iLateralRadius(4),
-				_iFeedBackRadius(4)
+				_eFeedForwardRadius(8),
+				_eFeedBackRadius(6),
+				_iFeedForwardRadius(6),
+				_iLateralRadius(6),
+				_iFeedBackRadius(6)
 			{}
 		};
 
@@ -115,15 +117,18 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float shortAverageSamplesInv, float longAverageDecay);
-		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv, float longAverageDecay);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float shortAverageSamplesInv);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv);
 
 		// Learn sparse codes
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedBackShortAverages,
-			const cl::Image2D &feedBackLongAverages,
+		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedForwardLongAverages,
+			const cl::Image2D &feedBackShortAverages, const cl::Image2D &feedBackLongAverages,
 			float eAlpha, float eBeta, float eDelta,
 			float iAlpha, float iBeta, float iGamma, float iDelta,
 			float sparsityE, float sparsityI);
+
+		// Update long averages
+		void updateLongAverages(sys::ComputeSystem &cs, float longAverageDecay);
 		
 		// Begin of example step
 		void exStepBegin(sys::ComputeSystem &cs);
