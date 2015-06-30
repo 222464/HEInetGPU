@@ -119,7 +119,8 @@ namespace ei {
 		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv, float longAverageDecay);
 
 		// Learn sparse codes
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
+		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedBackShortAverages,
+			const cl::Image2D &feedBackLongAverages,
 			float eAlpha, float eBeta, float eDelta,
 			float iAlpha, float iBeta, float iGamma, float iDelta,
 			float sparsityE, float sparsityI);

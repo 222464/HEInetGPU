@@ -167,15 +167,15 @@ void HEInet::learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const 
 	for (int li = 0; li < _eiLayers.size(); li++) {
 		if (li == 0) {
 			if (li == _eiLayers.size() - 1)
-				_eiLayers[li].learn(cs, inputImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, inputImage, zeroImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 			else
-				_eiLayers[li].learn(cs, inputImage, _eiLayers[li + 1]._iLayer._states, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, inputImage, _eiLayers[li + 1]._iLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._longAveragesPrev, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 		}
 		else {
 			if (li == _eiLayers.size() - 1)
-				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._states, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._shortAveragesPrev, zeroImage, zeroImage, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 			else
-				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._states, _eiLayers[li + 1]._iLayer._states, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
+				_eiLayers[li].learn(cs, _eiLayers[li - 1]._eLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._shortAveragesPrev, _eiLayers[li + 1]._iLayer._longAveragesPrev, eAlpha, eBeta, eDelta, iAlpha, iBeta, iGamma, iDelta, sparsityE, sparsityI);
 		}
 	}
 }

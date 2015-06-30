@@ -289,7 +289,8 @@ void EIlayer::iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_iActivationKernel, cl::NullRange, cl::NDRange(_config._iWidth, _config._iHeight));
 }
 
-void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
+void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedBackShortAverages,
+	const cl::Image2D &feedBackLongAverages,
 	float eAlpha, float eBeta, float eDelta,
 	float iAlpha, float iBeta, float iGamma, float iDelta,
 	float sparsityE, float sparsityI)
@@ -312,7 +313,7 @@ void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput,
 	{
 		int index = 0;
 
-		_kernels->_eLearnKernel.setArg(index++, feedForwardInput);
+		_kernels->_eLearnKernel.setArg(index++, feedForwardShortAverages);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._shortAveragesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._longAveragesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _iLayer._shortAveragesPrev);
@@ -344,7 +345,8 @@ void EIlayer::learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput,
 	{
 		int index = 0;
 
-		_kernels->_iLearnKernel.setArg(index++, feedBackInput);
+		_kernels->_iLearnKernel.setArg(index++, feedBackShortAverages);
+		_kernels->_iLearnKernel.setArg(index++, feedBackLongAverages);
 		_kernels->_iLearnKernel.setArg(index++, _eLayer._shortAveragesPrev);
 		_kernels->_iLearnKernel.setArg(index++, _eLayer._longAveragesPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iLayer._shortAveragesPrev);

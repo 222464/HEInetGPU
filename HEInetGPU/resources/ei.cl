@@ -282,7 +282,7 @@ void kernel EIlayer_iActivate(read_only image2d_t eStatesPrev, read_only image2d
 	float longAveragePrev = read_imagef(iLongAveragesPrev, position).x;
 
 	write_imagef(iActivations, position, (float4)(activation));
-	write_imagef(iStates, position, (float4)(state, (1.0f - homeoDecay) * statePrev.y + homeoDecay * state, 0.0f, 0.0f));
+	write_imagef(iStates, position, (float4)(state));
 	write_imagef(iShortAverages, position, (float4)(shortAveragePrev + shortAverageSamplesInv * state));
 	write_imagef(iLongAverages, position, (float4)((1.0f - longAverageDecay) * longAveragePrev + longAverageDecay * state));
 }
@@ -334,8 +334,8 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardInput,
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
 			if (feedBackPosition.x >= 0 && feedBackPosition.x < iDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iDims.y) {
-				float inputShortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, feedBackPosition).xy;
-				float inputLongAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, feedBackPosition).xy;
+				float inputShortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, feedBackPosition).x;
+				float inputLongAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, feedBackPosition).x;
 
 				float weightPrev = read_imagef(eFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
@@ -423,8 +423,8 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 			int2 lateralPosition = (int2)(position.x + dx, position.y + dy);
 
 			if (lateralPosition.x >= 0 && lateralPosition.x < iDims.x && lateralPosition.y >= 0 && lateralPosition.y < iDims.y) {
-				float inputShortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, feedForwardPosition).x;
-				float inputLongAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, feedForwardPosition).x;
+				float inputShortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, lateralPosition).x;
+				float inputLongAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, lateralPosition).x;
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
