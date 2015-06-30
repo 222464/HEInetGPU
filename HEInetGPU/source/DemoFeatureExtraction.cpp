@@ -169,9 +169,9 @@ int main() {
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.2f, 1.0f / 50.0f);
-			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.02f, 0.04f);
+		for (int iter = 0; iter < 30; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.01f, 1.0f / 30.0f);
+			ht.learn(cs, inputImage, zeroImage, 0.001f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.04f, 0.08f);
 			//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
 			ht.stepEnd();
 		}

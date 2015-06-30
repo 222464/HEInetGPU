@@ -51,6 +51,12 @@ namespace ei {
 			cl::Image2D _states;
 			cl::Image2D _statesPrev;
 
+			cl::Image2D _shortAverages;
+			cl::Image2D _shortAveragesPrev;
+
+			cl::Image2D _longAverages;
+			cl::Image2D _longAveragesPrev;
+
 			cl::Image2D _thresholds;
 			cl::Image2D _thresholdsPrev;
 		};
@@ -109,8 +115,8 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float homeoDecay);
-		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float homeoDecay);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float shortAverageSamplesInv, float longAverageDecay);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv, float longAverageDecay);
 
 		// Learn sparse codes
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, const cl::Image2D &feedBackInput,
@@ -118,8 +124,14 @@ namespace ei {
 			float iAlpha, float iBeta, float iGamma, float iDelta,
 			float sparsityE, float sparsityI);
 		
-		// End of simulation step (buffer swaps)
-		void stepEnd();
+		// Begin of example step
+		void exStepBegin(sys::ComputeSystem &cs);
+
+		// End of simulation step
+		void simStepEnd();
+
+		// End of example step
+		void exStepEnd();
 
 		const std::shared_ptr<Kernels> &getKernels() const {
 			return _kernels;
