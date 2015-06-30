@@ -9,9 +9,6 @@ void HEInet::Kernels::loadFromProgram(sys::ComputeProgram &program) {
 	_predictKernel = cl::Kernel(program.getProgram(), "HEInet_predict");
 
 	_predictionLearnKernel = cl::Kernel(program.getProgram(), "HEInet_predictionLearn");
-
-	_sumSpikesEKernel = cl::Kernel(program.getProgram(), "HEInet_sumSpikesE");
-	_sumSpikesIKernel = cl::Kernel(program.getProgram(), "HEInet_sumSpikesI");
 }
 
 void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
@@ -44,13 +41,8 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 	_prediction = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight);
 	_predictionPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight);
 
-	_spikeSumsE = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eWidth, eilConfigs.front()._eHeight);
-	_spikeSumsEPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eWidth, eilConfigs.front()._eHeight);
-	_spikeSumsEPrevIter = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eWidth, eilConfigs.front()._eHeight);
-
-	_spikeSumsI = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._iWidth, eilConfigs.front()._iHeight);
-	_spikeSumsIPrev = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._iWidth, eilConfigs.front()._iHeight);
-	_spikeSumsIPrevIter = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._iWidth, eilConfigs.front()._iHeight);
+	_eShortAveragePrevIter = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eWidth, eilConfigs.front()._eHeight);
+	_iShortAveragePrevIter = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._iWidth, eilConfigs.front()._iHeight);
 
 	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
 
@@ -84,12 +76,8 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 
 	cs.getQueue().enqueueFillImage(_predictionPrev, zeroColor, zeroCoord, eFeedForwardDimsCoord);
 
-	cs.getQueue().enqueueFillImage(_spikeSumsE, zeroColor, zeroCoord, eDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsI, zeroColor, zeroCoord, iDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsEPrev, zeroColor, zeroCoord, eDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsIPrev, zeroColor, zeroCoord, iDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsEPrevIter, zeroColor, zeroCoord, eDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsIPrevIter, zeroColor, zeroCoord, iDims);
+	cs.getQueue().enqueueFillImage(_eShortAveragePrevIter, zeroColor, zeroCoord, eDims);
+	cs.getQueue().enqueueFillImage(_iShortAveragePrevIter, zeroColor, zeroCoord, iDims);
 
 	_predictionFromEWeights._weights = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight, predictionFromESize);
 	_predictionFromEWeights._weightsPrev = cl::Image3D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), eilConfigs.front()._eFeedForwardWidth, eilConfigs.front()._eFeedForwardHeight, predictionFromESize);
@@ -117,43 +105,34 @@ void HEInet::createRandom(const std::vector<EIlayer::Configuration> &eilConfigs,
 	cs.getQueue().enqueueCopyImage(_predictionFromIWeights._weightsPrev, _predictionFromIWeights._weights, zeroCoord, zeroCoord, iPredictionWeightsDims);
 }
 
-void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar) {
+void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta, float longAverageDecay) {
 	const cl::Image2D* pLayerInput = &inputImage;
 
-	// Feed forward
-	for (int li = 0; li < _eiLayers.size(); li++) {
-		_eiLayers[li].eActivate(cs, *pLayerInput, eta, homeoDecay);
+	float iterInv = 1.0f / iter;
 
-		pLayerInput = &_eiLayers[li]._eLayer._statesPrev;
+	for (int li = 0; li < _eiLayers.size(); li++)
+		_eiLayers[li].exStepBegin(cs);
+
+	for (int i = 0; i < iter; i++) {
+		// Feed forward
+		for (int li = 0; li < _eiLayers.size(); li++) {
+			_eiLayers[li].eActivate(cs, *pLayerInput, eta, iterInv, longAverageDecay);
+
+			pLayerInput = &_eiLayers[li]._eLayer._statesPrev;
+		}
+
+		pLayerInput = &zeroImage;
+
+		// Feed back
+		for (int li = _eiLayers.size() - 1; li >= 0; li--) {
+			_eiLayers[li].iActivate(cs, *pLayerInput, eta, iterInv, longAverageDecay);
+
+			pLayerInput = &_eiLayers[li]._iLayer._statesPrev;
+		}
+
+		for (int li = 0; li < _eiLayers.size(); li++)
+			_eiLayers[li].simStepEnd();
 	}
-
-	pLayerInput = &zeroImage;
-
-	// Feed back
-	for (int li = _eiLayers.size() - 1; li >= 0; li--) {
-		_eiLayers[li].iActivate(cs, *pLayerInput, eta, homeoDecay);
-
-		pLayerInput = &_eiLayers[li]._iLayer._statesPrev;
-	}
-
-	// Sum spikes
-	int index = 0;
-
-	_kernels->_sumSpikesEKernel.setArg(index++, _eiLayers.front()._eLayer._states);
-	_kernels->_sumSpikesEKernel.setArg(index++, _spikeSumsEPrev);
-	_kernels->_sumSpikesEKernel.setArg(index++, _spikeSumsE);
-	_kernels->_sumSpikesEKernel.setArg(index++, sumSpikeScalar);
-
-	cs.getQueue().enqueueNDRangeKernel(_kernels->_sumSpikesEKernel, cl::NullRange, cl::NDRange(_eiLayers.front().getConfig()._eWidth, _eiLayers.front().getConfig()._eHeight));
-
-	index = 0;
-
-	_kernels->_sumSpikesIKernel.setArg(index++, _eiLayers.front()._iLayer._states);
-	_kernels->_sumSpikesIKernel.setArg(index++, _spikeSumsIPrev);
-	_kernels->_sumSpikesIKernel.setArg(index++, _spikeSumsI);
-	_kernels->_sumSpikesIKernel.setArg(index++, sumSpikeScalar);
-
-	cs.getQueue().enqueueNDRangeKernel(_kernels->_sumSpikesIKernel, cl::NullRange, cl::NDRange(_eiLayers.front().getConfig()._iWidth, _eiLayers.front().getConfig()._iHeight));
 }
 
 void HEInet::predict(sys::ComputeSystem &cs) {
@@ -165,8 +144,8 @@ void HEInet::predict(sys::ComputeSystem &cs) {
 
 	int index = 0;
 
-	_kernels->_predictKernel.setArg(index++, _spikeSumsEPrev);
-	_kernels->_predictKernel.setArg(index++, _spikeSumsIPrev);
+	_kernels->_predictKernel.setArg(index++, _eiLayers.front()._eLayer._shortAveragesPrev);
+	_kernels->_predictKernel.setArg(index++, _eiLayers.front()._iLayer._shortAveragesPrev);
 	_kernels->_predictKernel.setArg(index++, _predictionFromEWeights._weightsPrev);
 	_kernels->_predictKernel.setArg(index++, _predictionFromIWeights._weightsPrev);
 	_kernels->_predictKernel.setArg(index++, _prediction);
@@ -210,8 +189,8 @@ void HEInet::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputIma
 
 	int index = 0;
 
-	_kernels->_predictionLearnKernel.setArg(index++, _spikeSumsEPrevIter);
-	_kernels->_predictionLearnKernel.setArg(index++, _spikeSumsIPrevIter);
+	_kernels->_predictionLearnKernel.setArg(index++, _eShortAveragePrevIter);
+	_kernels->_predictionLearnKernel.setArg(index++, _iShortAveragePrevIter);
 	_kernels->_predictionLearnKernel.setArg(index++, inputImage);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionPrev);
 	_kernels->_predictionLearnKernel.setArg(index++, _predictionFromEWeights._weightsPrev);
@@ -230,23 +209,8 @@ void HEInet::learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputIma
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_predictionLearnKernel, cl::NullRange, cl::NDRange(_eiLayers.front().getConfig()._eFeedForwardWidth, _eiLayers.front().getConfig()._eFeedForwardHeight));
 }
 
-void HEInet::stepEnd() {
-	for (int li = 0; li < _eiLayers.size(); li++)
-		_eiLayers[li].stepEnd();
-
-	std::swap(_spikeSumsE, _spikeSumsEPrev);
-	std::swap(_spikeSumsI, _spikeSumsIPrev);
-}
-
-void HEInet::predictionEnd(sys::ComputeSystem &cs) {
-	std::swap(_prediction, _predictionPrev);
-
-	std::swap(_predictionFromEWeights._weights, _predictionFromEWeights._weightsPrev);
-	std::swap(_predictionFromIWeights._weights, _predictionFromIWeights._weightsPrev);
-
+void HEInet::exStepEnd(sys::ComputeSystem &cs) {
 	// Clear spike sums
-	cl_float4 zeroColor = { 0.0f, 0.0f, 0.0f, 0.0f };
-
 	cl::size_t<3> zeroCoord;
 	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
 
@@ -260,14 +224,11 @@ void HEInet::predictionEnd(sys::ComputeSystem &cs) {
 	iDims[1] = _eiLayers.front().getConfig()._iHeight;
 	iDims[2] = 1;
 
-	// Copy to prev time step
-	cs.getQueue().enqueueCopyImage(_spikeSumsEPrev, _spikeSumsEPrevIter, zeroCoord, zeroCoord, eDims);
-	cs.getQueue().enqueueCopyImage(_spikeSumsIPrev, _spikeSumsIPrevIter, zeroCoord, zeroCoord, iDims);
+	for (int li = 0; li < _eiLayers.size(); li++)
+		_eiLayers[li].exStepEnd();
 
-	cs.getQueue().enqueueFillImage(_spikeSumsE, zeroColor, zeroCoord, eDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsI, zeroColor, zeroCoord, iDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsEPrev, zeroColor, zeroCoord, eDims);
-	cs.getQueue().enqueueFillImage(_spikeSumsIPrev, zeroColor, zeroCoord, iDims);
+	cs.getQueue().enqueueCopyImage(_eiLayers.front()._eLayer._shortAveragesPrev, _eShortAveragePrevIter, zeroCoord, zeroCoord, eDims);
+	cs.getQueue().enqueueCopyImage(_eiLayers.front()._iLayer._shortAveragesPrev, _iShortAveragePrevIter, zeroCoord, zeroCoord, iDims);
 }
 
 void ei::generateConfigsFromSizes(cl_int2 inputSize, const std::vector<cl_int2> &layerESizes, const std::vector<cl_int2> &layerISizes, std::vector<EIlayer::Configuration> &configs) {

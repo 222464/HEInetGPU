@@ -12,9 +12,6 @@ namespace ei {
 			cl::Kernel _predictKernel;
 			cl::Kernel _predictionLearnKernel;
 
-			cl::Kernel _sumSpikesEKernel;
-			cl::Kernel _sumSpikesIKernel;
-
 			// Load kernels from program
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
@@ -29,12 +26,8 @@ namespace ei {
 	public:
 		cl::Image2D _prediction;
 		cl::Image2D _predictionPrev;
-		cl::Image2D _spikeSumsE;
-		cl::Image2D _spikeSumsEPrev;
-		cl::Image2D _spikeSumsEPrevIter;
-		cl::Image2D _spikeSumsI;
-		cl::Image2D _spikeSumsIPrev;
-		cl::Image2D _spikeSumsIPrevIter;
+		cl::Image2D _eShortAveragePrevIter;
+		cl::Image2D _iShortAveragePrevIter;
 
 		EIlayer::Weights2D _predictionFromEWeights;
 		EIlayer::Weights2D _predictionFromIWeights;
@@ -49,13 +42,13 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &eilKernels,
 			const std::shared_ptr<Kernels> &heiKernels, std::mt19937 &generator);
 
-		// Run through a simulation step
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float homeoDecay, float sumSpikeScalar = 1.0f / 17.0f);
+		// Run through an example step (multiple simulation steps)
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta, float longAverageDecay);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);
 
-		// Learn (seperate from simulation step)
+		// Learn
 		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage,
 			float eAlpha, float eBeta, float eDelta, float iAlpha, float iBeta, float iGamma, float iDelta,
 			float sparsityE, float sparsityI);
@@ -63,11 +56,8 @@ namespace ei {
 		// Learn prediction
 		void learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float alpha);
 
-		// End step (buffer swap)
-		void stepEnd();
-
-		// End prediction step (buffer swap)
-		void predictionEnd(sys::ComputeSystem &cs);
+		// End example step (buffer swap)
+		void exStepEnd(sys::ComputeSystem &cs);
 
 		const std::vector<EIlayer> &getEIlayers() const {
 			return _eiLayers;
