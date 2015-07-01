@@ -40,8 +40,6 @@ namespace ei {
 			cl::Kernel _eLearnKernel;
 			cl::Kernel _iLearnKernel;
 
-			cl::Kernel _longAverageKernel;
-
 			// Load kernels from program
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
@@ -52,12 +50,6 @@ namespace ei {
 
 			cl::Image2D _states;
 			cl::Image2D _statesPrev;
-
-			cl::Image2D _shortAverages;
-			cl::Image2D _shortAveragesPrev;
-
-			cl::Image2D _longAverages;
-			cl::Image2D _longAveragesPrev;
 
 			cl::Image2D _thresholds;
 			cl::Image2D _thresholdsPrev;
@@ -117,27 +109,19 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInput, float eta, float shortAverageSamplesInv);
-		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInput, float eta, float shortAverageSamplesInv);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInputs, float eta);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInputs, float eta);
 
 		// Learn sparse codes
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &feedForwardShortAverages, const cl::Image2D &feedForwardLongAverages,
-			const cl::Image2D &feedBackShortAverages, const cl::Image2D &feedBackLongAverages,
+		void learn(sys::ComputeSystem &cs,
+			const cl::Image2D &feedForwardInputs, const cl::Image2D &feedForwardInputsPrev,
+			const cl::Image2D &feedBackInputs, const cl::Image2D &feedBackInputsPrev,
 			float eAlpha, float eBeta, float eDelta,
 			float iAlpha, float iBeta, float iGamma, float iDelta,
 			float sparsityE, float sparsityI);
 
-		// Update long averages
-		void updateLongAverages(sys::ComputeSystem &cs, float longAverageDecay);
-		
-		// Begin of example step
-		void exStepBegin(sys::ComputeSystem &cs);
-
 		// End of simulation step
-		void simStepEnd();
-
-		// End of example step
-		void exStepEnd();
+		void stepEnd();
 
 		const std::shared_ptr<Kernels> &getKernels() const {
 			return _kernels;

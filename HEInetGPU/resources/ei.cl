@@ -36,8 +36,22 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
+const float stdpLowerScalar = 1.0f;
+
+float estdp(float prePrev, float post, float postPrev, float weight) {
+	return prePrev * post - prePrev * postPrev * weight;
+}
+
+float istdp(float prePrev, float post, float postPrev, float weight) {
+	return prePrev * postPrev - prePrev * post * weight;
+}
+
+float iistdp(float prePrev, float post, float postPrev, float sparsitySquared) {
+	return prePrev * postPrev - sparsitySquared;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------------------
-// ------------------------------------------------------------- RSC ---------------------------------------------------------------
+// ------------------------------------------------------------ Layer --------------------------------------------------------------
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 // Random weight initialization - excitatory
@@ -110,13 +124,11 @@ void kernel EIlayer_iInitialize(write_only image3d_t iFeedForwardWeights,
 void kernel EIlayer_eActivate(read_only image2d_t feedForwardInput, read_only image2d_t iStatesPrev,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	read_only image2d_t eActivationsPrev, read_only image2d_t eStatesPrev,
-	read_only image2d_t eShortAveragesPrev,
 	write_only image2d_t eActivations, write_only image2d_t eStates,
-	write_only image2d_t eShortAverages,
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
 	float2 eDimsToEFeedForwardDims, float2 eDimsToIDims,
 	int eFeedForwardRadius, int eFeedBackRadius,
-	float eta, float shortAverageSamplesInv)
+	float eta)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -178,23 +190,18 @@ void kernel EIlayer_eActivate(read_only image2d_t feedForwardInput, read_only im
 		activation = 0.0f;
 	}
 
-	float shortAveragePrev = read_imagef(eShortAveragesPrev, position).x;
-
 	write_imagef(eActivations, position, (float4)(activation));
 	write_imagef(eStates, position, (float4)(state));
-	write_imagef(eShortAverages, position, (float4)(shortAveragePrev + shortAverageSamplesInv * state));
 }
 
-void kernel EIlayer_iActivate(read_only image2d_t eStatesPrev, read_only image2d_t feedBackInput,
+void kernel EIlayer_iActivate(read_only image2d_t feedBackInput, read_only image2d_t eStatesPrev,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	read_only image2d_t iActivationsPrev, read_only image2d_t iStatesPrev,
-	read_only image2d_t iShortAveragesPrev,
 	write_only image2d_t iActivations, write_only image2d_t iStates,
-	write_only image2d_t iShortAverages,
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
 	float2 iDimsToEDims, float2 iDimsToFeedBackDims,
 	int iFeedForwardRadius, int iLateralRadius, int iFeedBackRadius,
-	float eta, float shortAverageSamplesInv)
+	float eta)
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
@@ -276,17 +283,14 @@ void kernel EIlayer_iActivate(read_only image2d_t eStatesPrev, read_only image2d
 		activation = 0.0f;
 	}
 
-	float shortAveragePrev = read_imagef(iShortAveragesPrev, position).x;
-
 	write_imagef(iActivations, position, (float4)(activation));
 	write_imagef(iStates, position, (float4)(state));
-	write_imagef(iShortAverages, position, (float4)(shortAveragePrev + shortAverageSamplesInv * state));
 }
 
 // Learn - excitatory
-void kernel EIlayer_eLearn(read_only image2d_t feedForwardShortAverages, read_only image2d_t feedForwardLongAverages,
-	read_only image2d_t eShortAverages, read_only image2d_t eLongAverages,
-	read_only image2d_t iShortAverages, read_only image2d_t iLongAverages,
+void kernel EIlayer_eLearn(read_only image2d_t feedForwardStatesPrev, read_only image2d_t feedForwardStates,
+	read_only image2d_t eStatesPrev, read_only image2d_t eStates,
+	read_only image2d_t iStatesPrev, read_only image2d_t iStates,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
 	write_only image3d_t eFeedForwardWeights, write_only image3d_t eFeedBackWeights, write_only image2d_t eThresholds,
 	int2 eFeedForwardDims, int2 eDims, int2 iDims,
@@ -296,8 +300,8 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardShortAverages, read_on
 {
 	int2 position = (int2)(get_global_id(0), get_global_id(1));
 
-	float shortAverage = read_imagef(eShortAverages, defaultUnnormalizedSampler, position).x;
-	float longAverage = read_imagef(eLongAverages, defaultUnnormalizedSampler, position).x;
+	float eState = read_imagef(eStates, defaultUnnormalizedSampler, position).x;
+	float eStatePrev = read_imagef(eStatesPrev, defaultUnnormalizedSampler, position).x;
 
 	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * eDimsToEFeedForwardDims.x + 0.5f, (position.y + 0.5f) * eDimsToEFeedForwardDims.y + 0.5f);
 	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * eDimsToIDims.x + 0.5f, (position.y + 0.5f) * eDimsToIDims.y + 0.5f);
@@ -310,12 +314,11 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardShortAverages, read_on
 			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
 			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eFeedForwardDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eFeedForwardDims.y) {
-				float inputShortAverage = read_imagef(feedForwardShortAverages, defaultUnnormalizedSampler, feedForwardPosition).x;
-				float inputLongAverage = read_imagef(feedForwardLongAverages, defaultUnnormalizedSampler, feedForwardPosition).x;
+				float inputPrev = read_imagef(feedForwardStatesPrev, defaultUnnormalizedSampler, feedForwardPosition).x;
 
 				float weightPrev = read_imagef(eFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + alpha * (shortAverage - longAverage) * (inputShortAverage - inputLongAverage));
+				float weight = fmax(0.0f, weightPrev + alpha * istdp(inputPrev, eState, eStatePrev, weightPrev));
 
 				write_imagef(eFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -331,12 +334,11 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardShortAverages, read_on
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
 			if (feedBackPosition.x >= 0 && feedBackPosition.x < iDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iDims.y) {
-				float inputShortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, feedBackPosition).x;
-				float inputLongAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, feedBackPosition).x;
-
+				float inputPrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, feedBackPosition).x;
+	
 				float weightPrev = read_imagef(eFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + beta * (shortAverage - longAverage) * (inputShortAverage - inputLongAverage));
+				float weight = fmax(0.0f, weightPrev + beta * estdp(inputPrev, eState, eStatePrev, weightPrev));
 
 				write_imagef(eFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -346,15 +348,15 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardShortAverages, read_on
 
 	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
-	float threshold = thresholdPrev + delta * (shortAverage - sparsity);
+	float threshold = thresholdPrev + delta * (eState - sparsity);
 
 	write_imagef(eThresholds, position, (float4)(threshold));
 }
 
 // Learn - inhibitory
-void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only image2d_t feedBackLongAverages,
-	read_only image2d_t eShortAverages, read_only image2d_t eLongAverages,
-	read_only image2d_t iShortAverages, read_only image2d_t iLongAverages,
+void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesPrev, read_only image2d_t feedBackStates,
+	read_only image2d_t eStatesPrev, read_only image2d_t eStates,
+	read_only image2d_t iStatesPrev, read_only image2d_t iStates,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
 	write_only image3d_t iFeedForwardWeights, write_only image3d_t iLateralWeights, write_only image3d_t iFeedBackWeights, write_only image2d_t iThresholds,
 	int2 eDims, int2 iDims, int2 iFeedBackDims,
@@ -367,8 +369,8 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 	int2 feedForwardCenterPosition = (int2)((position.x + 0.5f) * iDimsToEDims.x + 0.5f, (position.y + 0.5f) * iDimsToEDims.y + 0.5f);
 	int2 feedBackCenterPosition = (int2)((position.x + 0.5f) * iDimsToFeedBackDims.x + 0.5f, (position.y + 0.5f) * iDimsToFeedBackDims.y + 0.5f);
 
-	float shortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, position).x;
-	float longAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, position).x;
+	float iState = read_imagef(iStates, defaultUnnormalizedSampler, position).x;
+	float iStatePrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, position).x;
 
 	int wi = 0;
 
@@ -378,12 +380,11 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
 			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eDims.y) {
-				float inputShortAverage = read_imagef(eShortAverages, defaultUnnormalizedSampler, feedForwardPosition).x;
-				float inputLongAverage = read_imagef(eLongAverages, defaultUnnormalizedSampler, feedForwardPosition).x;
+				float inputPrev = read_imagef(eStatesPrev, defaultUnnormalizedSampler, feedForwardPosition).x;
 
 				float weightPrev = read_imagef(iFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + alpha * (shortAverage - longAverage) * (inputShortAverage - inputLongAverage));
+				float weight = fmax(0.0f, weightPrev + alpha * estdp(inputPrev, iState, iStatePrev, weightPrev));
 
 				write_imagef(iFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -399,12 +400,11 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
 			if (feedBackPosition.x >= 0 && feedBackPosition.x < iFeedBackDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iFeedBackDims.y) {
-				float inputShortAverage = read_imagef(feedBackShortAverages, defaultUnnormalizedSampler, feedBackPosition).x;
-				float inputLongAverage = read_imagef(feedBackLongAverages, defaultUnnormalizedSampler, feedBackPosition).x;
+				float inputPrev = read_imagef(feedBackStatesPrev, defaultUnnormalizedSampler, feedBackPosition).x;
 
 				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + beta * (shortAverage - longAverage) * (inputShortAverage - inputLongAverage));
+				float weight = fmax(0.0f, weightPrev + beta * istdp(inputPrev, iState, iStatePrev, sparsity * sparsity));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -420,12 +420,11 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 			int2 lateralPosition = (int2)(position.x + dx, position.y + dy);
 
 			if (lateralPosition.x >= 0 && lateralPosition.x < iDims.x && lateralPosition.y >= 0 && lateralPosition.y < iDims.y) {
-				float inputShortAverage = read_imagef(iShortAverages, defaultUnnormalizedSampler, lateralPosition).x;
-				float inputLongAverage = read_imagef(iLongAverages, defaultUnnormalizedSampler, lateralPosition).x;
+				float inputPrev = read_imagef(iStatesPrev, defaultUnnormalizedSampler, lateralPosition).x;
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + gamma * (shortAverage - longAverage) * (inputShortAverage - inputLongAverage));
+				float weight = fmax(0.0f, weightPrev + gamma * iistdp(inputPrev, iState, iStatePrev, sparsity * sparsity));
 
 				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -435,22 +434,9 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackShortAverages, read_only 
 
 	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
-	float threshold = thresholdPrev + delta * (shortAverage - sparsity);
+	float threshold = thresholdPrev + delta * (iState - sparsity);
 
 	write_imagef(iThresholds, position, (float4)(threshold));
-}
-
-void kernel EIlayer_longAverage(read_only image2d_t shortAverages, read_only image2d_t longAveragesPrev,
-	write_only image2d_t longAverages,
-	float longAverageDecay)
-{
-	int2 position = (int2)(get_global_id(0), get_global_id(1));
-
-	float shortAverage = read_imagef(shortAverages, position).x;
-
-	float longAveragePrev = read_imagef(longAveragesPrev, position).x;
-
-	write_imagef(longAverages, position, (float4)((1.0f - longAverageDecay) * longAveragePrev + longAverageDecay * shortAverage));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -592,4 +578,42 @@ void kernel HEInet_predictionLearn(read_only image2d_t eStates, read_only image2
 
 			wi++;
 		}
+}
+
+void kernel HEInet_updateInputSpikes(read_only image2d_t spikeRates, read_only image2d_t spikeTimersPrev,
+	write_only image2d_t spikeTimers, write_only image2d_t spikes)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	float spikeRate = read_imagef(spikeRates, position).x;
+
+	float spikeTimerPrev = read_imagef(spikeTimersPrev, position).x;
+
+	float spikeTimer = spikeTimerPrev + spikeRate;
+
+	float spike = 0.0f;
+
+	if (spikeTimer >= 1.0f) {
+		spikeTimer -= 1.0f;
+
+		spike = 1.0f;
+	}
+
+	write_imagef(spikeTimers, position, (float4)(spikeTimer));
+	write_imagef(spikes, position, (float4)(spike));
+}
+
+void kernel HEInet_sumSpikes(read_only image2d_t spikes, read_only image2d_t sumsPrev,
+	write_only image2d_t sums,
+	float scalar)
+{
+	int2 position = (int2)(get_global_id(0), get_global_id(1));
+
+	float spike = read_imagef(spikes, position).x;
+
+	float sumPrev = read_imagef(sumsPrev, position).x;
+
+	float sum = sumPrev + spike * scalar;
+
+	write_imagef(sums, position, (float4)(sum));
 }

@@ -12,6 +12,10 @@ namespace ei {
 			cl::Kernel _predictKernel;
 			cl::Kernel _predictionLearnKernel;
 
+			cl::Kernel _updateInputSpikesKernel;
+
+			cl::Kernel _sumSpikesKernel;
+
 			// Load kernels from program
 			void loadFromProgram(sys::ComputeProgram &program);
 		};
@@ -26,10 +30,19 @@ namespace ei {
 	public:
 		cl::Image2D _prediction;
 		cl::Image2D _predictionPrev;
-		cl::Image2D _inputLongAverages;
-		cl::Image2D _inputLongAveragesPrev;
-		cl::Image2D _eShortAveragePrevIter;
-		cl::Image2D _iShortAveragePrevIter;
+
+		cl::Image2D _inputSpikes;
+		cl::Image2D _inputSpikesPrev;
+
+		cl::Image2D _inputSpikeTimers;
+		cl::Image2D _inputSpikeTimersPrev;
+
+		cl::Image2D _eSpikeSums;
+		cl::Image2D _iSpikeSums;
+		cl::Image2D _eSpikeSumsPrev;
+		cl::Image2D _iSpikeSumsPrev;
+		cl::Image2D _eSpikeSumsIterPrev;
+		cl::Image2D _iSpikeSumsIterPrev;
 
 		EIlayer::Weights2D _predictionFromEWeights;
 		EIlayer::Weights2D _predictionFromIWeights;
@@ -44,25 +57,28 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<EIlayer::Kernels> &eilKernels,
 			const std::shared_ptr<Kernels> &heiKernels, std::mt19937 &generator);
 
-		// Run through an example step (multiple simulation steps)
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, int iter, float eta);
+		// Begin summation of spikes
+		void spikeSumBegin(sys::ComputeSystem &cs);
 
-		// Update long averages
-		void updateLongAverages(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float longAverageDecay);
+		void sumSpikes(sys::ComputeSystem &cs, float scalar);
+
+		// Run through an example step (multiple simulation steps)
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);
 
 		// Learn
-		void learn(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage,
+		void learn(sys::ComputeSystem &cs, const cl::Image2D &zeroImage,
 			float eAlpha, float eBeta, float eDelta, float iAlpha, float iBeta, float iGamma, float iDelta,
 			float sparsityE, float sparsityI);
 
 		// Learn prediction
 		void learnPrediction(sys::ComputeSystem &cs, const cl::Image2D &inputImage, float alpha);
 
-		// End example step (buffer swap)
-		void exStepEnd(sys::ComputeSystem &cs);
+		void stepEnd(sys::ComputeSystem &cs);
+
+		void predictionEnd();
 
 		const std::vector<EIlayer> &getEIlayers() const {
 			return _eiLayers;

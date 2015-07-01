@@ -90,7 +90,7 @@ int main() {
 
 	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, 0.0f, 0.01f, 0.0f, 0.01f, 0.01f, 0.01f, 0.03f, 0.03f, cs, rsc2dKernels, eiKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 1.0f, 0.0f, 1.0f, 0.01f, 0.01f, 0.1f, 0.1f, cs, rsc2dKernels, eiKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -142,15 +142,19 @@ int main() {
 		for (int x = 0; x < windowWidth; x++)
 			for (int y = 0; y < windowHeight; y++) {
 				sf::Color c = subImage.getPixel(x, y);
-				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f);
+				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f) * 0.333f; // Scale by 0.333f so maximum spike rate is 1/3 of the time
 			}
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
-		ht.update(cs, inputImage, zeroImage, 30, 0.01f);
-		ht.learn(cs, inputImage, zeroImage, 0.1f, 0.28f, 0.28f, 0.28f, 0.28f, 0.6f, 0.28f, 0.03f, 0.03f);
-		ht.updateLongAverages(cs, inputImage, 0.1f);
-		ht.exStepEnd(cs);
+		ht.spikeSumBegin(cs);
+
+		for (int iter = 0; iter < 50; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.01f);
+			ht.sumSpikes(cs, 1.0f / 50.0f);
+			ht.learn(cs, zeroImage, 0.028f, 0.028f, 0.008f, 0.028f, 0.028f, 0.06f, 0.008f, 0.1f, 0.1f);
+			ht.stepEnd(cs);
+		}
 
 		ht.predict(cs);
 		ht.learnPrediction(cs, inputImage, 0.005f);
@@ -176,8 +180,8 @@ int main() {
 		iDims[1] = ht.getEIlayers()[0].getConfig()._iHeight;
 		iDims[2] = 1;
 
-		cs.getQueue().enqueueReadImage(ht._iShortAveragePrevIter, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
-		cs.getQueue().enqueueReadImage(ht._eShortAveragePrevIter, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._iSpikeSumsIterPrev, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._eSpikeSumsIterPrev, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -254,7 +258,7 @@ int main() {
 							int index = (rx + ry * effWeightsDims[0]) + (wx + wy * diam) * effWeightsDims[0] * effWeightsDims[1];
 
 							sf::Color c;
-							c.r = c.g = c.b = 255 * sigmoid(4.0f * eWeights[index]);
+							c.r = c.g = c.b = 255 * (1.0f - std::exp(-0.4f * eWeights[index]));
 							c.a = 255;
 							img.setPixel(rx * diam + wx, ry * diam + wy, c);
 						}
@@ -273,6 +277,8 @@ int main() {
 
 			window.draw(s);
 		}
+
+		ht.predictionEnd();
 
 		window.display();
 	}
