@@ -36,11 +36,20 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
+const float stdpLowerScalar = 1.0f;
+
 float stdp(float preHist, float postHist, float weight) {
 	if (postHist >= preHist)
 		return preHist * postHist;
 	
-	return -preHist * postHist;
+	return -preHist * postHist * stdpLowerScalar;
+}
+
+float rstdp(float preHist, float postHist, float weight) {
+	if (postHist <= preHist)
+		return preHist * postHist;
+
+	return -preHist * postHist * stdpLowerScalar;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -393,11 +402,11 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_o
 			int2 feedForwardPosition = (int2)(feedForwardCenterPosition.x + dx, feedForwardCenterPosition.y + dy);
 
 			if (feedForwardPosition.x >= 0 && feedForwardPosition.x < eDims.x && feedForwardPosition.y >= 0 && feedForwardPosition.y < eDims.y) {
-				float inputPrev = read_imagef(eStatesHistoryPrev, defaultUnnormalizedSampler, feedForwardPosition).x;
+				float input = read_imagef(eStatesHistory, defaultUnnormalizedSampler, feedForwardPosition).x;
 
 				float weightPrev = read_imagef(iFeedForwardWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + alpha * stdp(inputPrev, iStateHistory, weightPrev));
+				float weight = fmax(0.0f, weightPrev + alpha * rstdp(input, iStateHistoryPrev, weightPrev));
 
 				write_imagef(iFeedForwardWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -413,11 +422,11 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_o
 			int2 feedBackPosition = (int2)(feedBackCenterPosition.x + dx, feedBackCenterPosition.y + dy);
 
 			if (feedBackPosition.x >= 0 && feedBackPosition.x < iFeedBackDims.x && feedBackPosition.y >= 0 && feedBackPosition.y < iFeedBackDims.y) {
-				float inputPrev = read_imagef(feedBackStatesHistoryPrev, defaultUnnormalizedSampler, feedBackPosition).x;
+				float input = read_imagef(feedBackStatesHistory, defaultUnnormalizedSampler, feedBackPosition).x;
 
 				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + beta * stdp(iStateHistoryPrev, inputPrev, weightPrev));
+				float weight = fmax(0.0f, weightPrev + beta * rstdp(input, iStateHistoryPrev, weightPrev));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -437,7 +446,7 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_o
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + gamma * stdp(inputPrev, iStateHistory, weightPrev));
+				float weight = fmax(0.0f, weightPrev + gamma * stdp(inputPrev, iStateHistoryPrev, weightPrev));
 
 				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
