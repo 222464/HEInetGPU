@@ -34,6 +34,9 @@ namespace ei {
 		cl::Image2D _inputSpikes;
 		cl::Image2D _inputSpikesPrev;
 
+		cl::Image2D _inputSpikesHistory;
+		cl::Image2D _inputSpikesHistoryPrev;
+
 		cl::Image2D _inputSpikeTimers;
 		cl::Image2D _inputSpikeTimersPrev;
 
@@ -63,7 +66,7 @@ namespace ei {
 		void sumSpikes(sys::ComputeSystem &cs, float scalar);
 
 		// Run through an example step (multiple simulation steps)
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float shDecay);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);

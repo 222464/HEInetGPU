@@ -150,9 +150,9 @@ int main() {
 		ht.spikeSumBegin(cs);
 
 		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.01f);
+			ht.update(cs, inputImage, zeroImage, 0.01f, 0.1f);
 			ht.sumSpikes(cs, 1.0f / 50.0f);
-			ht.learn(cs, zeroImage, 0.028f, 0.028f, 0.008f, 0.028f, 0.028f, 0.06f, 0.008f, 0.1f, 0.1f);
+			ht.learn(cs, zeroImage, 0.005f, 0.028f, 0.008f, 0.028f, 0.028f, 0.06f, 0.008f, 0.1f, 0.1f);
 			ht.stepEnd(cs);
 		}
 

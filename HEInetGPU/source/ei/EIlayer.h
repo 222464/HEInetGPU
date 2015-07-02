@@ -51,6 +51,9 @@ namespace ei {
 			cl::Image2D _states;
 			cl::Image2D _statesPrev;
 
+			cl::Image2D _statesHistory;
+			cl::Image2D _statesHistoryPrev;
+
 			cl::Image2D _thresholds;
 			cl::Image2D _thresholdsPrev;
 		};
@@ -109,8 +112,8 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInputs, float eta);
-		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInputs, float eta);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInputs, float eta, float shDecay);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInputs, float eta, float shDecay);
 
 		// Learn sparse codes
 		void learn(sys::ComputeSystem &cs,
