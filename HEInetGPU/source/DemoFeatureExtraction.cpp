@@ -150,9 +150,9 @@ int main() {
 		ht.spikeSumBegin(cs);
 
 		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.1f, 0.25f);
+			ht.update(cs, inputImage, zeroImage, 0.02f, 0.1f);
 			ht.sumSpikes(cs, 2.0f / 50.0f);
-			ht.learn(cs, zeroImage, 0.02f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.1f, 0.1f);
+			ht.learn(cs, zeroImage, 0.008f, 0.008f, 0.005f, 0.008f, 0.008f, 0.01f, 0.005f, 0.025f, 0.025f);
 			ht.stepEnd(cs);
 		}
 
@@ -258,7 +258,7 @@ int main() {
 							int index = (rx + ry * effWeightsDims[0]) + (wx + wy * diam) * effWeightsDims[0] * effWeightsDims[1];
 
 							sf::Color c;
-							c.r = c.g = c.b = 255 * (1.0f - std::exp(-0.4f * eWeights[index]));
+							c.r = c.g = c.b = 255 * (1.0f - std::exp(-1.0f * eWeights[index]));
 							c.a = 255;
 							img.setPixel(rx * diam + wx, ry * diam + wy, c);
 						}
