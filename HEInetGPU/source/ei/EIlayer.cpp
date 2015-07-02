@@ -300,10 +300,7 @@ void EIlayer::learn(sys::ComputeSystem &cs,
 
 		_kernels->_eLearnKernel.setArg(index++, feedForwardInputsPrev);
 		_kernels->_eLearnKernel.setArg(index++, feedForwardInputs);
-		_kernels->_eLearnKernel.setArg(index++, _eLayer._statesPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._states);
-		_kernels->_eLearnKernel.setArg(index++, _iLayer._statesPrev);
-		_kernels->_eLearnKernel.setArg(index++, _iLayer._states);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._statesHistoryPrev);
 		_kernels->_eLearnKernel.setArg(index++, _eLayer._statesHistory);
 		_kernels->_eLearnKernel.setArg(index++, _iLayer._statesHistoryPrev);
@@ -337,14 +334,11 @@ void EIlayer::learn(sys::ComputeSystem &cs,
 
 		_kernels->_iLearnKernel.setArg(index++, feedBackInputsPrev);
 		_kernels->_iLearnKernel.setArg(index++, feedBackInputs);
-		_kernels->_iLearnKernel.setArg(index++, _eLayer._statesPrev);
-		_kernels->_iLearnKernel.setArg(index++, _eLayer._states);
-		_kernels->_iLearnKernel.setArg(index++, _iLayer._statesPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iLayer._states);
-		_kernels->_eLearnKernel.setArg(index++, _eLayer._statesHistoryPrev);
-		_kernels->_eLearnKernel.setArg(index++, _eLayer._statesHistory);
-		_kernels->_eLearnKernel.setArg(index++, _iLayer._statesHistoryPrev);
-		_kernels->_eLearnKernel.setArg(index++, _iLayer._statesHistory);
+		_kernels->_iLearnKernel.setArg(index++, _eLayer._statesHistoryPrev);
+		_kernels->_iLearnKernel.setArg(index++, _eLayer._statesHistory);
+		_kernels->_iLearnKernel.setArg(index++, _iLayer._statesHistoryPrev);
+		_kernels->_iLearnKernel.setArg(index++, _iLayer._statesHistory);
 		_kernels->_iLearnKernel.setArg(index++, _iFeedForwardWeights._weightsPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iLateralWeights._weightsPrev);
 		_kernels->_iLearnKernel.setArg(index++, _iFeedBackWeights._weightsPrev);

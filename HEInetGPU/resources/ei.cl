@@ -36,7 +36,7 @@ float randFloat(uint2* state) {
 	return convert_float(tmp) * invMaxInt;
 }
 
-const float stdpLowerScalar = 1.0f;
+constant const float stdpLowerScalar = 1.0f;
 
 float stdp(float preHist, float postHist, float weight) {
 	if (postHist >= preHist)
@@ -305,8 +305,7 @@ void kernel EIlayer_iActivate(read_only image2d_t feedBackInput, read_only image
 
 // Learn - excitatory
 void kernel EIlayer_eLearn(read_only image2d_t feedForwardStatesHistoryPrev, read_only image2d_t feedForwardStatesHistory,
-	read_only image2d_t eStatesPrev, read_only image2d_t eStates,
-	read_only image2d_t iStatesPrev, read_only image2d_t iStates,
+	read_only image2d_t eStates,
 	read_only image2d_t eStatesHistoryPrev, read_only image2d_t eStatesHistory,
 	read_only image2d_t iStatesHistoryPrev, read_only image2d_t iStatesHistory,
 	read_only image3d_t eFeedForwardWeightsPrev, read_only image3d_t eFeedBackWeightsPrev, read_only image2d_t eThresholdsPrev,
@@ -374,8 +373,7 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardStatesHistoryPrev, rea
 
 // Learn - inhibitory
 void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_only image2d_t feedBackStatesHistory,
-	read_only image2d_t eStatesPrev, read_only image2d_t eStates,
-	read_only image2d_t iStatesPrev, read_only image2d_t iStates,
+	read_only image2d_t iStates,
 	read_only image2d_t eStatesHistoryPrev, read_only image2d_t eStatesHistory,
 	read_only image2d_t iStatesHistoryPrev, read_only image2d_t iStatesHistory,
 	read_only image3d_t iFeedForwardWeightsPrev, read_only image3d_t iLateralWeightsPrev, read_only image3d_t iFeedBackWeightsPrev, read_only image2d_t iThresholdsPrev,
@@ -446,7 +444,7 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_o
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmax(0.0f, weightPrev + gamma * stdp(inputPrev, iStateHistoryPrev, weightPrev));
+				float weight = fmax(0.0f, weightPrev + gamma * stdp(inputPrev, iStateHistory, weightPrev));
 
 				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
