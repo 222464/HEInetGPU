@@ -41,16 +41,16 @@ constant const float stdpWeightDecay = 0.01f;
 
 float stdp(float preHist, float postHist, float weight) {
 	if (postHist >= preHist)
-		return preHist * postHist - postHist * weight * stdpWeightDecay;
+		return preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
 	
-	return -preHist * postHist - postHist * weight * stdpWeightDecay;
+	return -preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
 }
 
 float rstdp(float preHist, float postHist, float weight) {
 	if (postHist <= preHist)
-		return preHist * postHist - postHist * weight * stdpWeightDecay;
+		return preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
 
-	return -preHist * postHist - postHist * weight * stdpWeightDecay;
+	return -preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

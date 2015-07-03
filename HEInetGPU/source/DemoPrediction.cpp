@@ -95,7 +95,7 @@ int main() {
 
 	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, -0.01f, 0.01f, 0.0f, 0.01f, 0.01f, 0.01f, 0.03f, 0.03f, cs, layerKernels, hKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 1.0f, 0.0f, 1.0f, 0.01f, 0.01f, 0.1f, 0.1f, cs, layerKernels, hKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), inputSize.x, inputSize.y);
 
@@ -139,34 +139,17 @@ int main() {
 		dims[1] = inputSize.y;
 		dims[2] = 1;
 
-		std::array<float, 4> normSequence;
+		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, sequence[s]);
 
-		float mean = 0.0f;
+		ht.spikeSumBegin(cs);
 
-		for (int i = 0; i < normSequence.size(); i++)
-			mean += sequence[s][i];
-
-		float variance = 0.0f;
-
-		for (int i = 0; i < normSequence.size(); i++) {
-			normSequence[i] = sequence[s][i] - mean;
-
-			variance += normSequence[i] * normSequence[i];
+		for (int iter = 0; iter < 50; iter++) {
+			ht.update(cs, inputImage, zeroImage, 0.02f, 0.1f);
+			ht.sumSpikes(cs, 2.0f / 50.0f);
+			ht.learn(cs, zeroImage, 0.008f, 0.008f, 0.005f, 0.008f, 0.008f, 0.01f, 0.005f, 0.025f, 0.025f);
+			ht.stepEnd(cs);
 		}
 
-		float stdDevInv = 1.0f / std::sqrt(variance / normSequence.size());
-
-		for (int i = 0; i < normSequence.size(); i++) {
-			normSequence[i] *= stdDevInv;
-		}
-
-		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, normSequence.data());
-
-		ht.update(cs, inputImage, zeroImage, 30, 0.02f, 0.002f);
-		ht.learn(cs, inputImage, zeroImage, 0.01f, 0.028f, 0.028f, 0.028f, 0.028f, 0.06f, 0.028f, 0.03f, 0.03f);
-		//ht.learn(cs, inputImage, zeroImage, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.02f, 0.04f);
-		ht.exStepEnd(cs);
-		
 		ht.predict(cs);
 		ht.learnPrediction(cs, inputImage, 0.005f);
 
@@ -191,8 +174,8 @@ int main() {
 		iDims[1] = ht.getEIlayers()[0].getConfig()._iHeight;
 		iDims[2] = 1;
 
-		cs.getQueue().enqueueReadImage(ht._iShortAveragePrevIter, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
-		cs.getQueue().enqueueReadImage(ht._eShortAveragePrevIter, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._iSpikeSumsIterPrev, CL_TRUE, zeroCoord, iDims, 0, 0, iSpikeData.data());
+		cs.getQueue().enqueueReadImage(ht._eSpikeSumsIterPrev, CL_TRUE, zeroCoord, eDims, 0, 0, eSpikeData.data());
 		cs.getQueue().enqueueReadImage(ht._prediction, CL_TRUE, zeroCoord, inputDims, 0, 0, predictionData.data());
 
 		{
@@ -293,6 +276,8 @@ int main() {
 			std::cout << (predictionData[i] > 0.0f ? 1 : 0) << " ";
 
 		std::cout << std::endl;
+
+		ht.predictionEnd();
 
 		window.display();
 	}

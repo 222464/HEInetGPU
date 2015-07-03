@@ -62,7 +62,7 @@ int main() {
 	ei::HEInet ht;
 
 	sf::Image testImage;
-	testImage.loadFromFile("testImage_whitened.png");
+	testImage.loadFromFile("testImage.png");
 
 	int windowWidth = 16;
 	int windowHeight = 16;
@@ -90,7 +90,7 @@ int main() {
 
 	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, 0.0f, 1.0f, 0.0f, 1.0f, 0.01f, 0.01f, 0.1f, 0.1f, cs, rsc2dKernels, eiKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 0.01f, 0.0f, 1.0f, 0.01f, 0.01f, 0.1f, 0.1f, cs, rsc2dKernels, eiKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -150,9 +150,9 @@ int main() {
 		ht.spikeSumBegin(cs);
 
 		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.02f, 0.1f);
+			ht.update(cs, inputImage, zeroImage, 0.02f, 0.2f);
 			ht.sumSpikes(cs, 2.0f / 50.0f);
-			ht.learn(cs, zeroImage, 0.008f, 0.008f, 0.005f, 0.008f, 0.008f, 0.01f, 0.005f, 0.025f, 0.025f);
+			ht.learn(cs, zeroImage, 0.001f, 0.008f, 0.005f, 0.008f, 0.008f, 0.01f, 0.005f, 0.025f, 0.025f);
 			ht.stepEnd(cs);
 		}
 
@@ -245,6 +245,16 @@ int main() {
 
 			cs.getQueue().enqueueReadImage(ht.getEIlayers()[0]._eFeedForwardWeights._weights, CL_TRUE, zeroCoord, effWeightsDims, 0, 0, eWeights.data());
 
+			float minW = 99999.0f;
+			float maxW = -99999.0f;
+
+			for (int i = 0; i < eWeights.size(); i++) {
+				minW = std::min<float>(minW, eWeights[i]);
+				maxW = std::max<float>(maxW, eWeights[i]);
+			}
+
+			float mult = 1.0f / (maxW - minW);
+
 			sf::Image img;
 
 			int diam = configs[0]._eFeedForwardRadius * 2 + 1;
@@ -258,7 +268,7 @@ int main() {
 							int index = (rx + ry * effWeightsDims[0]) + (wx + wy * diam) * effWeightsDims[0] * effWeightsDims[1];
 
 							sf::Color c;
-							c.r = c.g = c.b = 255 * (1.0f - std::exp(-1.0f * eWeights[index]));
+							c.r = c.g = c.b = 255 * (eWeights[index] - minW) * mult;
 							c.a = 255;
 							img.setPixel(rx * diam + wx, ry * diam + wy, c);
 						}
