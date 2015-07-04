@@ -62,7 +62,7 @@ int main() {
 	ei::HEInet ht;
 
 	sf::Image testImage;
-	testImage.loadFromFile("testImage.png");
+	testImage.loadFromFile("testImage_whitened.png");
 
 	int windowWidth = 16;
 	int windowHeight = 16;
@@ -142,17 +142,21 @@ int main() {
 		for (int x = 0; x < windowWidth; x++)
 			for (int y = 0; y < windowHeight; y++) {
 				sf::Color c = subImage.getPixel(x, y);
-				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f) * 0.333f; // Scale by 0.333f so maximum spike rate is 1/3 of the time
+				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f); // Scale by 0.5f so maximum spike rate is 1/2 of the time
 			}
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
 
 		ht.spikeSumBegin(cs);
 
+		cl_uint4 zeroColor = { 0, 0, 0, 0 };
+
+		ht.setInputPhase(cs, zeroColor);
+
 		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.02f, 0.2f);
-			ht.sumSpikes(cs, 2.0f / 50.0f);
-			ht.learn(cs, zeroImage, 0.001f, 0.008f, 0.005f, 0.008f, 0.008f, 0.01f, 0.005f, 0.025f, 0.025f);
+			ht.update(cs, inputImage, zeroImage, 0.2f, 0.6f);
+			ht.sumSpikes(cs, 1.0f / 50.0f);
+			ht.learn(cs, zeroImage, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.025f, 0.025f);
 			ht.stepEnd(cs);
 		}
 

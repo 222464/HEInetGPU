@@ -180,11 +180,35 @@ void HEInet::sumSpikes(sys::ComputeSystem &cs, float scalar) {
 	cs.getQueue().enqueueNDRangeKernel(_kernels->_sumSpikesKernel, cl::NullRange, cl::NDRange(_eiLayers.front().getConfig()._iWidth, _eiLayers.front().getConfig()._iHeight));
 }
 
-void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputImage, const cl::Image2D &zeroImage, float eta, float shDecay) {
+void HEInet::setInputPhase(sys::ComputeSystem &cs, const cl::Image2D &inputPhaseImage) {
+	cl::size_t<3> zeroCoord;
+	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+	cl::size_t<3> eFeedForwardDimsCoord;
+	eFeedForwardDimsCoord[0] = _eiLayers.front().getConfig()._eFeedForwardWidth;
+	eFeedForwardDimsCoord[1] = _eiLayers.front().getConfig()._eFeedForwardHeight;
+	eFeedForwardDimsCoord[2] = 1;
+
+	cs.getQueue().enqueueCopyImage(inputPhaseImage, _inputSpikeTimersPrev, zeroCoord, zeroCoord, eFeedForwardDimsCoord);
+}
+
+void HEInet::setInputPhase(sys::ComputeSystem &cs, cl_uint4 color) {
+	cl::size_t<3> zeroCoord;
+	zeroCoord[0] = zeroCoord[1] = zeroCoord[2] = 0;
+
+	cl::size_t<3> eFeedForwardDimsCoord;
+	eFeedForwardDimsCoord[0] = _eiLayers.front().getConfig()._eFeedForwardWidth;
+	eFeedForwardDimsCoord[1] = _eiLayers.front().getConfig()._eFeedForwardHeight;
+	eFeedForwardDimsCoord[2] = 1;
+
+	cs.getQueue().enqueueFillImage(_inputSpikeTimersPrev, color, zeroCoord, eFeedForwardDimsCoord);
+}
+
+void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyImage, const cl::Image2D &zeroImage, float eta, float shDecay) {
 	// Update input spikes
 	int index = 0;
 
-	_kernels->_updateInputSpikesKernel.setArg(index++, inputImage);
+	_kernels->_updateInputSpikesKernel.setArg(index++, inputFrequencyImage);
 	_kernels->_updateInputSpikesKernel.setArg(index++, _inputSpikeTimersPrev);
 	_kernels->_updateInputSpikesKernel.setArg(index++, _inputSpikesHistoryPrev);
 	_kernels->_updateInputSpikesKernel.setArg(index++, _inputSpikeTimers);

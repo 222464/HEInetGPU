@@ -40,17 +40,17 @@ constant const float stdpLowerScalar = 0.5f;
 constant const float stdpWeightDecay = 0.01f;
 
 float stdp(float preHist, float postHist, float weight) {
-	if (postHist >= preHist)
-		return preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
+	if (postHist > preHist)
+		return preHist * postHist;
 	
-	return -preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
+	return -preHist * postHist;
 }
 
 float rstdp(float preHist, float postHist, float weight) {
-	if (postHist <= preHist)
-		return preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
+	if (postHist < preHist)
+		return preHist * postHist;
 
-	return -preHist * postHist - preHist * postHist * weight * stdpWeightDecay;
+	return -preHist * postHist;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -181,7 +181,7 @@ void kernel EIlayer_eActivate(read_only image2d_t feedForwardInput, read_only im
 
 	float activationPrev = read_imagef(eActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(eThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -189,7 +189,7 @@ void kernel EIlayer_eActivate(read_only image2d_t feedForwardInput, read_only im
 
 	float state = 0.0f;
 
-	if (activation > thresholdPrev && statePrev < 0.5f) { // Includes refractory period
+	if (activation > thresholdPrev) { // Includes refractory period
 		state = 1.0f;
 
 		activation = 0.0f;
@@ -281,7 +281,7 @@ void kernel EIlayer_iActivate(read_only image2d_t feedBackInput, read_only image
 
 	float activationPrev = read_imagef(iActivationsPrev, defaultUnnormalizedSampler, position).x;
 
-	float activation = (1.0f - eta) * activationPrev + eta * (excitation - inhibition);
+	float activation = (1.0f - eta) * activationPrev + (excitation - inhibition);
 
 	float thresholdPrev = read_imagef(iThresholdsPrev, defaultUnnormalizedSampler, position).x;
 
@@ -289,7 +289,7 @@ void kernel EIlayer_iActivate(read_only image2d_t feedBackInput, read_only image
 
 	float state = 0.0f;
 
-	if (activation > thresholdPrev && statePrev < 0.5f) { // Includes refractory period
+	if (activation > thresholdPrev) { // Includes refractory period
 		state = 1.0f;
 
 		activation = 0.0f;
