@@ -69,7 +69,7 @@ namespace ei {
 		void setInputPhase(sys::ComputeSystem &cs, cl_uint4 color);
 
 		// Run through an example step (multiple simulation steps)
-		void update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyImage, const cl::Image2D &zeroImage, float eta, float shDecay);
+		void update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyImage, const cl::Image2D &zeroImage, float eta, float shDecay, float caDecay);
 
 		// Get prediction
 		void predict(sys::ComputeSystem &cs);

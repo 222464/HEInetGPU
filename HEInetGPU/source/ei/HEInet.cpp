@@ -204,7 +204,7 @@ void HEInet::setInputPhase(sys::ComputeSystem &cs, cl_uint4 color) {
 	cs.getQueue().enqueueFillImage(_inputSpikeTimersPrev, color, zeroCoord, eFeedForwardDimsCoord);
 }
 
-void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyImage, const cl::Image2D &zeroImage, float eta, float shDecay) {
+void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyImage, const cl::Image2D &zeroImage, float eta, float shDecay, float caDecay) {
 	// Update input spikes
 	int index = 0;
 
@@ -222,7 +222,7 @@ void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyIma
 
 	// Feed forward
 	for (int li = 0; li < _eiLayers.size(); li++) {
-		_eiLayers[li].eActivate(cs, *pLayerInput, eta, shDecay);
+		_eiLayers[li].eActivate(cs, *pLayerInput, eta, shDecay, caDecay);
 
 		pLayerInput = &_eiLayers[li]._eLayer._statesPrev;
 	}
@@ -231,7 +231,7 @@ void HEInet::update(sys::ComputeSystem &cs, const cl::Image2D &inputFrequencyIma
 
 	// Feed back
 	for (int li = _eiLayers.size() - 1; li >= 0; li--) {
-		_eiLayers[li].iActivate(cs, *pLayerInput, eta, shDecay);
+		_eiLayers[li].iActivate(cs, *pLayerInput, eta, shDecay, caDecay);
 
 		pLayerInput = &_eiLayers[li]._iLayer._statesPrev;
 	}

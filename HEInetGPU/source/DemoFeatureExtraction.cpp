@@ -90,7 +90,7 @@ int main() {
 
 	ei::generateConfigsFromSizes(inputSize, eSizes, iSizes, configs);
 
-	ht.createRandom(configs, 6, 6, 0.0f, 0.01f, 0.0f, 1.0f, 0.01f, 0.01f, 0.1f, 0.1f, cs, rsc2dKernels, eiKernels, generator);
+	ht.createRandom(configs, 6, 6, 0.0f, 0.01f, 0.0f, 1.0f, 0.5f, 0.5f, 0.1f, 0.1f, cs, rsc2dKernels, eiKernels, generator);
 
 	cl::Image2D inputImage = cl::Image2D(cs.getContext(), CL_MEM_READ_WRITE, cl::ImageFormat(CL_R, CL_FLOAT), windowWidth, windowHeight);
 
@@ -142,7 +142,7 @@ int main() {
 		for (int x = 0; x < windowWidth; x++)
 			for (int y = 0; y < windowHeight; y++) {
 				sf::Color c = subImage.getPixel(x, y);
-				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f); // Scale by 0.5f so maximum spike rate is 1/2 of the time
+				inputData[x + y * windowWidth] = (c.r + c.g + c.b) / (3.0f * 255.0f) * 0.5f; // Scale by 0.5f so maximum spike rate is 1/2 of the time
 			}
 
 		cs.getQueue().enqueueWriteImage(inputImage, CL_TRUE, zeroCoord, dims, 0, 0, inputData.data());
@@ -154,8 +154,8 @@ int main() {
 		ht.setInputPhase(cs, zeroColor);
 
 		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.2f, 0.6f);
-			ht.sumSpikes(cs, 1.0f / 50.0f);
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.4f, 0.1f);
+			ht.sumSpikes(cs, 2.0f / 50.0f);
 			ht.learn(cs, zeroImage, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.01f, 0.025f, 0.025f);
 			ht.stepEnd(cs);
 		}
