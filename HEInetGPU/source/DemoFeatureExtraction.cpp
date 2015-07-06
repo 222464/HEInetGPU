@@ -154,7 +154,7 @@ int main() {
 		ht.setInputPhase(cs, zeroColor);
 
 		for (int iter = 0; iter < 50; iter++) {
-			ht.update(cs, inputImage, zeroImage, 0.01f, 0.5f, 0.01f);
+			ht.update(cs, inputImage, zeroImage, 0.1f, 0.5f, 0.01f);
 			ht.sumSpikes(cs, 1.0f / 50.0f);
 			ht.learn(cs, zeroImage, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.1f, 0.02f, 0.02f);
 			ht.stepEnd(cs);

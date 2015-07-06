@@ -46,7 +46,7 @@ float stdp(float preHist, float postHist, float weight, float eLearn, float iLea
 	if (preHist <= postHist)
 		return eLearn * preHist * postHist * (1.0f - weight);
 
-	return -iLearn * preHist * postHist * weight * stdpOffset;
+	return -iLearn * preHist * postHist * weight;
 }
 
 float rstdp(float preHist, float postHist, float weight, float eLearn, float iLearn) {
@@ -380,7 +380,7 @@ void kernel EIlayer_eLearn(read_only image2d_t feedForwardStatesHistoryPrev, rea
 	
 				float weightPrev = read_imagef(eFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmin(1.0f, fmax(0.0f, weightPrev + beta * stdp(inputPrev, eStateHistory, weightPrev, eLearn, iLearn)));
+				float weight = fmin(1.0f, fmax(0.0f, weightPrev + beta * stdp(inputPrev, eStateHistory, weightPrev, iLearn, eLearn)));
 
 				write_imagef(eFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -456,7 +456,7 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_o
 
 				float weightPrev = read_imagef(iFeedBackWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmin(1.0f, fmax(0.0f, weightPrev + beta * stdp(inputPrev, iStateHistory, weightPrev, eLearn, iLearn)));
+				float weight = fmin(1.0f, fmax(0.0f, weightPrev + beta * stdp(inputPrev, iStateHistory, weightPrev, iLearn, eLearn)));
 
 				write_imagef(iFeedBackWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
@@ -476,7 +476,7 @@ void kernel EIlayer_iLearn(read_only image2d_t feedBackStatesHistoryPrev, read_o
 
 				float weightPrev = read_imagef(iLateralWeightsPrev, defaultUnnormalizedSampler, (int4)(position.x, position.y, wi, 0)).x;
 
-				float weight = fmin(1.0f, fmax(0.0f, weightPrev + gamma * stdp(inputPrev, iStateHistory, weightPrev, eLearn, iLearn)));
+				float weight = fmin(1.0f, fmax(0.0f, weightPrev + gamma * stdp(inputPrev, iStateHistory, weightPrev, iLearn, eLearn)));
 
 				write_imagef(iLateralWeights, (int4)(position.x, position.y, wi, 0), (float4)(weight));
 			}
