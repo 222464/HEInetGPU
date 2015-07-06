@@ -54,11 +54,11 @@ namespace ei {
 			cl::Image2D _statesHistory;
 			cl::Image2D _statesHistoryPrev;
 
+			cl::Image2D _stateAverages;
+			cl::Image2D _stateAveragesPrev;
+
 			cl::Image2D _thresholds;
 			cl::Image2D _thresholdsPrev;
-
-			cl::Image2D _currentAverages;
-			cl::Image2D _currentAveragesPrev;
 		};
 
 		struct Weights2D {
@@ -115,8 +115,8 @@ namespace ei {
 			sys::ComputeSystem &cs, const std::shared_ptr<Kernels> &eilKernels, std::mt19937 &generator);
 
 		// Find sparse codes
-		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInputs, float eta, float shDecay, float caDecay);
-		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInputs, float eta, float shDecay, float caDecay);
+		void eActivate(sys::ComputeSystem &cs, const cl::Image2D &feedForwardInputs, float eta, float shDecay, float saDecay);
+		void iActivate(sys::ComputeSystem &cs, const cl::Image2D &feedBackInputs, float eta, float shDecay, float saDecay);
 
 		// Learn sparse codes
 		void learn(sys::ComputeSystem &cs,
