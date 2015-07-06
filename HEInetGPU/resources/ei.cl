@@ -42,18 +42,18 @@ float sigmoid(float x) {
 
 constant const float stdpOffset = 0.5f;
 
-float stdp(float preHist, float postHist, float weight, float eLearn, float iLearn) {
+float stdp(float preHist, float postHist, float weight, float a, float b) {
 	if (preHist <= postHist)
-		return eLearn * preHist * postHist * (1.0f - weight);
+		return a * preHist * postHist * (1.0f - weight);
 
-	return -iLearn * preHist * postHist * weight;
+	return -b * preHist * postHist * weight;
 }
 
-float rstdp(float preHist, float postHist, float weight, float eLearn, float iLearn) {
+float rstdp(float preHist, float postHist, float weight, float a, float b) {
 	if (preHist >= postHist)
-		return eLearn * preHist * postHist * (1.0f - weight);
+		return a * preHist * postHist * (1.0f - weight);
 
-	return -iLearn * preHist * postHist * weight;
+	return -b * preHist * postHist * weight;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
